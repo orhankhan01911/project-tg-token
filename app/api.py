@@ -145,6 +145,7 @@ def _verify_init_data_or_401(init_data: str) -> InitDataVerified:
 
 
 @app.get("/health")
+@app.get("/api/health")
 async def health() -> dict[str, Any]:
     return {"ok": True, "version": app.version}
 
@@ -159,7 +160,7 @@ class NonceResponse(BaseModel):
     ttl_seconds: int
 
 
-@app.post("/siwe/nonce", response_model=NonceResponse)
+@app.post("/api/siwe/nonce", response_model=NonceResponse)
 async def siwe_nonce(
     body: NonceRequest,
     redis: Annotated[AsyncRedis, Depends(get_redish)],
@@ -236,7 +237,7 @@ async def _try_approve_join(bot: Bot | None, *, chat_id: int, tg_user_id: int) -
         return False
 
 
-@app.post("/siwe/verify", response_model=VerifyResponse)
+@app.post("/api/siwe/verify", response_model=VerifyResponse)
 async def siwe_verify(
     body: VerifyRequest,
     db: Annotated[AsyncIOMotorDatabase[Any], Depends(get_dbh)],

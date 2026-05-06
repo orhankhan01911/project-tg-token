@@ -25,13 +25,25 @@ dev: ## Run the bot in long-poll mode (foreground)
 	$(VENV)/bin/python -m $(APP)
 
 api: ## Run the FastAPI server (separate process from the bot)
-	$(VENV)/bin/uvicorn app.api:app --host 127.0.0.1 --port 8001 --reload
+	$(VENV)/bin/uvicorn app.api:app --host 127.0.0.1 --port 8002 --reload
 
 verifier-install: ## Install the Node verifier sidecar deps
 	cd webapp_verifier && npm install
 
 verifier: ## Run the Node verifier sidecar (foreground)
 	cd webapp_verifier && npm start
+
+webapp-install: ## Install the React Mini App deps
+	cd webapp && npm install
+
+webapp: ## Run the Mini App in dev mode (vite, port 5173)
+	cd webapp && npm run dev
+
+webapp-test: ## Run the Mini App test suite (vitest)
+	cd webapp && npm test
+
+webapp-build: ## Production build of the Mini App
+	cd webapp && npm run build
 
 test: test-unit ## Default: run unit tests (fast)
 

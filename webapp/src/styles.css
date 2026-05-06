@@ -1,0 +1,94 @@
+/* tg-token Mini App — minimal styling that respects Telegram theme.
+   Telegram injects --tg-theme-* CSS variables; we use them directly so
+   the panel matches dark/light/colorful Telegram themes automatically. */
+
+:root {
+  --tg-bg: var(--tg-theme-bg-color, #1c1c1e);
+  --tg-fg: var(--tg-theme-text-color, #ffffff);
+  --tg-hint: var(--tg-theme-hint-color, #8e8e93);
+  --tg-link: var(--tg-theme-link-color, #007aff);
+  --tg-btn: var(--tg-theme-button-color, #007aff);
+  --tg-btn-fg: var(--tg-theme-button-text-color, #ffffff);
+  --tg-secondary-bg: var(--tg-theme-secondary-bg-color, #2c2c2e);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: var(--tg-bg);
+  color: var(--tg-fg);
+  font-family: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+main {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-height: 100vh;
+  padding: 24px 20px;
+  gap: 16px;
+}
+
+h1 {
+  font-size: 22px;
+  font-weight: 600;
+  margin: 0;
+}
+
+p {
+  margin: 0;
+  color: var(--tg-hint);
+}
+
+p.error {
+  color: #ff453a;
+}
+
+p.ok {
+  color: #34c759;
+}
+
+button {
+  appearance: none;
+  border: 0;
+  border-radius: 12px;
+  padding: 14px 18px;
+  font-size: 17px;
+  font-weight: 600;
+  background: var(--tg-btn);
+  color: var(--tg-btn-fg);
+  cursor: pointer;
+  transition: opacity 120ms;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+button.secondary {
+  background: var(--tg-secondary-bg);
+  color: var(--tg-fg);
+}
+
+.card {
+  background: var(--tg-secondary-bg);
+  border-radius: 12px;
+  padding: 14px;
+  font-size: 14px;
+  color: var(--tg-hint);
+  word-break: break-all;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+.spacer {
+  flex: 1;
+}

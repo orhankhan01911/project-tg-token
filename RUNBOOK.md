@@ -260,8 +260,10 @@ Three processes total (each runs as its own systemd unit in
 | Service | Port | Purpose |
 |---|---|---|
 | `tg-token-bot` | — | Long-poll worker; receives `chat_join_request` |
-| `tg-token-api` | 8001 | Mini App backend + webhook receivers (S5) |
+| `tg-token-api` | 8002 | Mini App backend + webhook receivers (S5) |
 | `tg-token-verifier` | 8090 | viem signature verifier |
+
+> Port 8001 is reserved by project-hypeV2's LLM service — don't touch it.
 
 ### Prereqs
 

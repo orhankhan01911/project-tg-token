@@ -101,5 +101,5 @@ tg-token/
 
 - ✅ Session 0 — scaffold + hello-world join-request bot
 - ✅ Session 1 — Mongo schema + whitelist-backed gate + decline path
-- ⏳ Session 2 — SIWE backend + Node sidecar + bot DM (Mini App pending)
+- ✅ Session 2 — SIWE end-to-end (FastAPI + viem sidecar + bot DM + React Mini App). Live: 1.088s verify→approve.
 - ⏳ Sessions 3–9 — see the build plan

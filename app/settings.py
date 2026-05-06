@@ -35,8 +35,9 @@ class Settings(BaseSettings):
     verifier_url: str = "http://127.0.0.1:8090"
 
     # Where the FastAPI server listens. Bot worker is a separate process.
+    # Port 8001 is taken by project-hypeV2 LLM service on this host.
     api_host: str = "127.0.0.1"
-    api_port: int = 8001
+    api_port: int = 8002
 
     # CORS origins for the Mini App. Comma-separated in env.
     cors_origins: str = ""
