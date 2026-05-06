@@ -28,12 +28,18 @@ import sentry_sdk
 from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.exceptions import TelegramAPIError
+from aiogram.exceptions import TelegramAPIError, TelegramNetworkError
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel, Field
 from redis.asyncio import Redis as AsyncRedis
+from tenacity import (
+    AsyncRetrying,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from app.auth.initdata import Invalid as InitDataInvalid
 from app.auth.initdata import Verified as InitDataVerified
@@ -222,10 +228,28 @@ async def _persist_verification(
 
 
 async def _try_approve_join(bot: Bot | None, *, chat_id: int, tg_user_id: int) -> bool:
+    """Approve the user's pending join request. Best-effort: if there is
+    no pending request (already approved, expired, or never existed)
+    Telegram returns a `TelegramBadRequest`, we swallow it and return
+    False — the user can re-tap the invite link and the bot's handler
+    will pick them up via the freshly-persisted verifications row.
+
+    Network errors (`TelegramNetworkError`) get the same bounded
+    exponential-backoff retry as the bot handler. Same rationale: TG's
+    edge resets connections under load; "no silent failure modes" means
+    we retry instead of accepting a transient blip as a final answer.
+    """
     if bot is None:
         return False
     try:
-        await bot.approve_chat_join_request(chat_id=chat_id, user_id=tg_user_id)
+        async for attempt in AsyncRetrying(
+            retry=retry_if_exception_type(TelegramNetworkError),
+            stop=stop_after_attempt(5),
+            wait=wait_exponential(multiplier=0.5, min=0.5, max=8.0),
+            reraise=True,
+        ):
+            with attempt:
+                await bot.approve_chat_join_request(chat_id=chat_id, user_id=tg_user_id)
         return True
     except TelegramAPIError as e:
         log.info(
