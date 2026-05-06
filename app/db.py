@@ -1,0 +1,68 @@
+"""Motor async client + index bootstrap.
+
+Indexes are *the* schema in MongoDB. Listing them here, in code, makes the
+schema reviewable in PRs and re-applied on every startup (`ensure_indexes`
+is idempotent — calling it twice is cheap). Workspace convention is no
+SQLAlchemy/Alembic — the lifespan-applied bootstrap below is what
+`project-btcV2/backend/app/db/indexes.py` does.
+"""
+
+from __future__ import annotations
+
+from typing import Any, cast
+
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+from pymongo import ASCENDING
+
+from app.logging_conf import get_logger
+from app.settings import settings
+
+log = get_logger(__name__)
+
+
+def make_client(uri: str | None = None) -> AsyncIOMotorClient[Any]:
+    return AsyncIOMotorClient[Any](
+        uri or settings.mongo_uri,
+        uuidRepresentation="standard",
+        serverSelectionTimeoutMS=2000,
+    )
+
+
+def get_db(
+    client: AsyncIOMotorClient[Any], db_name: str | None = None
+) -> AsyncIOMotorDatabase[Any]:
+    return client[db_name or settings.mongo_db]
+
+
+async def ensure_indexes(db: AsyncIOMotorDatabase[Any]) -> None:
+    """Idempotent index bootstrap. Safe to call on every startup.
+
+    Index choices, briefly:
+    - `whitelist`: composite-unique on (chat_id, tg_user_id) — closes G6
+      and keeps "is this user whitelisted in this chat?" a single point read.
+    - `gates`: lookup by chat_id — every join evaluates all gates for a chat.
+    - `verifications`: composite (tg_user_id, chat_id) for the gate
+      evaluator's per-user lookup; non-unique because a user may have
+      multiple bound wallets per chat (one per chain).
+    - `events`: `_id` is the idem_key (no extra index needed); MongoDB's
+      unique-on-`_id` is the dedup primitive.
+    """
+    await cast(Any, db.whitelist).create_index(
+        [("chat_id", ASCENDING), ("tg_user_id", ASCENDING)],
+        unique=True,
+        name="whitelist_chat_user_unique",
+    )
+    await cast(Any, db.gates).create_index(
+        [("chat_id", ASCENDING)],
+        name="gates_by_chat",
+    )
+    await cast(Any, db.verifications).create_index(
+        [("tg_user_id", ASCENDING), ("chat_id", ASCENDING)],
+        name="verifications_user_chat",
+    )
+    await cast(Any, db.verifications).create_index(
+        [("chain", ASCENDING), ("address", ASCENDING)],
+        unique=True,
+        name="verifications_chain_address_unique",
+    )
+    log.info("indexes_ensured", db=db.name)

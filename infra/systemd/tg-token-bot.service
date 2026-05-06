@@ -1,0 +1,17 @@
+[Unit]
+Description=tg-token v2 — Telegram polling worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Desktop/claude_folder/claude/tg-token
+EnvironmentFile=%h/Desktop/claude_folder/claude/tg-token/.env
+ExecStart=%h/Desktop/claude_folder/claude/tg-token/.venv/bin/python -m app
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,67 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tg-token"
+version = "0.1.0"
+description = "Telegram-native token-gating bot v2 — chat_join_request + Mini App + event-driven re-verify"
+requires-python = ">=3.12"
+dependencies = [
+    "aiogram>=3.13,<4",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "motor>=3.6",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "structlog>=24.4",
+    "sentry-sdk>=2.18",
+    "redis>=5.2",
+    "httpx>=0.27",
+    "tenacity>=9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=6.0",
+    "ruff>=0.7",
+    "pyright>=1.1.385",
+    "respx>=0.21",
+    "mongomock-motor>=0.0.34",
+]
+
+[project.scripts]
+tg-token = "app.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = [
+    "unit: pure-logic tests, no network",
+    "integration: hits real testnet RPC, real Bot API, real Mongo, real Redis",
+    "e2e: end-to-end Playwright Mini App flows",
+]
+addopts = "-ra --strict-markers"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "N", "RUF"]
+ignore = ["E501"]
+
+[tool.pyright]
+include = ["app", "tests"]
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.12"
+typeCheckingMode = "basic"
+reportMissingImports = "error"
+reportMissingTypeStubs = "none"

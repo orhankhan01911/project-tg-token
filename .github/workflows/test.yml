@@ -1,0 +1,44 @@
+name: test
+
+on:
+  push:
+    paths:
+      - "tg-token/**"
+      - ".github/workflows/test.yml"
+  pull_request:
+    paths:
+      - "tg-token/**"
+
+defaults:
+  run:
+    working-directory: tg-token
+
+jobs:
+  unit:
+    name: ruff + pyright + pytest -m unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dev deps
+        run: |
+          uv venv .venv --python 3.12
+          uv pip install --python .venv/bin/python -e ".[dev]"
+
+      - name: ruff
+        run: .venv/bin/ruff check app tests
+
+      - name: pyright
+        run: .venv/bin/pyright
+
+      - name: pytest unit
+        run: .venv/bin/pytest -q -m unit

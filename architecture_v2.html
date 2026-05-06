@@ -1,0 +1,1340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TG Token Gates — V2 Reimplementation Brief</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  /* ─── tokens ────────────────────────────────────────────────────── */
+  :root {
+    --ink:        #0a0d12;
+    --ink-2:      #0e1218;
+    --ink-3:      #11161e;
+    --line:       rgba(170, 185, 200, 0.07);
+    --line-2:     rgba(170, 185, 200, 0.18);
+    --line-3:     rgba(170, 185, 200, 0.32);
+
+    --text:       #d6dce5;
+    --text-dim:   #8c95a3;
+    --text-mute:  #5b6471;
+    --text-faint: #383f49;
+
+    /* v2 inverts the accent: jade is primary (the new way), amber is legacy */
+    --jade:       #6ee7d8;
+    --jade-soft:  rgba(110, 231, 216, 0.08);
+    --jade-dim:   #3a8a82;
+
+    --amber:      #ffb86b;       /* now reserved for v1/legacy refs */
+    --amber-soft: rgba(255, 184, 107, 0.08);
+
+    --crit:       #ff5d8f;       /* removed / deleted */
+    --mid:        #ffd66e;       /* upgraded / changed */
+    --low:        #b9e88c;       /* unchanged */
+
+    --serif:      'Instrument Serif', 'Times New Roman', serif;
+    --mono:       'JetBrains Mono', ui-monospace, monospace;
+
+    --maxw:       1280px;
+    --gutter:     32px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--text);
+    background: var(--ink);
+    background-image:
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 40px 40px;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(0deg, transparent 0, transparent 2px, rgba(255,255,255,0.012) 3px, transparent 4px);
+    pointer-events: none; z-index: 100;
+  }
+  ::selection { background: var(--jade); color: var(--ink); }
+  a { color: inherit; text-decoration: none; }
+  a:hover { color: var(--jade); }
+
+  .serif { font-family: var(--serif); font-style: normal; }
+  .serif.italic { font-style: italic; }
+  .uc { text-transform: uppercase; letter-spacing: 0.08em; }
+  .num { font-variant-numeric: tabular-nums; }
+  .container { max-width: var(--maxw); margin: 0 auto; padding: 0 var(--gutter); }
+
+  /* ─── cover ─────────────────────────────────────────────────────── */
+  .cover { padding: 56px 0 72px; border-bottom: 1px solid var(--line-2); position: relative; }
+  .cover__band {
+    display: grid; grid-template-columns: 1fr auto 1fr;
+    gap: 20px; font-size: 10.5px;
+    color: var(--text-mute); letter-spacing: 0.18em;
+    text-transform: uppercase;
+    padding-bottom: 10px;
+    border-bottom: 1px dashed var(--line-2);
+  }
+  .cover__band .center { text-align: center; color: var(--jade); }
+  .cover__band .right { text-align: right; }
+  .cover__band .pulse::before {
+    content: '●'; margin-right: 6px; color: var(--jade);
+    animation: pulse 2s ease infinite;
+  }
+  @keyframes pulse { 50% { opacity: 0.3; } }
+
+  .cover__title {
+    display: grid; grid-template-columns: 1.4fr 1fr;
+    gap: 64px; align-items: end; margin-top: 56px;
+  }
+  .cover__eyebrow {
+    font-size: 11px; letter-spacing: 0.3em; color: var(--jade);
+    margin-bottom: 28px;
+  }
+  .cover__h1 {
+    font-family: var(--serif); font-weight: 400;
+    font-size: clamp(64px, 11vw, 168px);
+    line-height: 0.88; letter-spacing: -0.02em;
+    margin: 0;
+  }
+  .cover__h1 .it { font-style: italic; color: var(--jade); }
+  .cover__h1 .small {
+    font-size: 0.45em; vertical-align: super;
+    color: var(--text-mute); margin-left: 0.2em;
+    letter-spacing: 0; font-style: normal;
+  }
+  .cover__sub {
+    font-family: var(--serif); font-style: italic;
+    font-size: clamp(18px, 1.6vw, 22px);
+    color: var(--text-dim); line-height: 1.4;
+    margin: 0; max-width: 38ch;
+  }
+  .cover__sub::before { content: '“'; color: var(--jade); margin-right: 4px; }
+  .cover__sub::after  { content: '”'; color: var(--jade); margin-left: 4px; }
+
+  /* big stat row — three counters with units */
+  .cover__stats {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 0; margin-top: 64px;
+    border-top: 1px solid var(--line-2);
+    border-bottom: 1px solid var(--line-2);
+  }
+  .cover__stats > div {
+    padding: 28px 24px;
+    border-right: 1px dashed var(--line-2);
+  }
+  .cover__stats > div:last-child { border-right: 0; }
+  .cover__stats .label {
+    font-size: 9.5px; letter-spacing: 0.26em;
+    color: var(--text-mute); text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .cover__stats .big {
+    font-family: var(--serif); font-size: 56px;
+    line-height: 1; color: var(--text);
+  }
+  .cover__stats .big .it { color: var(--jade); font-style: italic; }
+  .cover__stats .sub {
+    margin-top: 8px; font-size: 11px; color: var(--text-dim);
+  }
+  .cover__stats .sub em { color: var(--amber); font-style: normal; text-decoration: line-through; text-decoration-color: var(--crit); }
+
+  /* ─── nav ───────────────────────────────────────────────────────── */
+  .nav {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(10, 13, 18, 0.92);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-top: 1px solid var(--line-2);
+    border-bottom: 1px solid var(--line-2);
+  }
+  .nav__inner {
+    max-width: var(--maxw); margin: 0 auto;
+    padding: 14px var(--gutter);
+    display: flex; align-items: center;
+    gap: 28px; font-size: 11px;
+    letter-spacing: 0.2em; text-transform: uppercase;
+    overflow-x: auto;
+  }
+  .nav__brand { color: var(--jade); font-weight: 500; flex-shrink: 0; }
+  .nav__list { display: flex; gap: 24px; flex: 1; }
+  .nav__list a { color: var(--text-dim); flex-shrink: 0; transition: color .15s; }
+  .nav__list a .num { color: var(--text-faint); margin-right: 6px; }
+  .nav__list a:hover, .nav__list a.is-active { color: var(--text); }
+  .nav__list a.is-active .num { color: var(--jade); }
+  .nav__legacy {
+    flex-shrink: 0; color: var(--amber);
+    font-size: 10px; letter-spacing: 0.2em;
+  }
+  .nav__legacy a { color: inherit; border-bottom: 1px dashed currentColor; padding-bottom: 1px; }
+
+  /* ─── section frame ─────────────────────────────────────────────── */
+  section.sec { padding: 96px 0 64px; border-bottom: 1px solid var(--line-2); }
+  .sec__head {
+    display: grid; grid-template-columns: 80px 1fr;
+    gap: 24px; align-items: start;
+    margin-bottom: 56px;
+  }
+  .sec__num {
+    font-family: var(--serif); font-size: 64px;
+    line-height: 1; color: var(--jade);
+  }
+  .sec__num small {
+    display: block; font-family: var(--mono);
+    font-size: 9px; color: var(--text-mute);
+    letter-spacing: 0.3em; margin-top: 8px;
+  }
+  .sec__h2 {
+    font-family: var(--serif); font-weight: 400;
+    font-size: clamp(34px, 5vw, 56px);
+    line-height: 1; letter-spacing: -0.01em;
+    margin: 0 0 12px;
+  }
+  .sec__h2 .it { font-style: italic; color: var(--text-dim); }
+  .sec__lede {
+    max-width: 60ch; color: var(--text-dim);
+    font-size: 14px; margin: 0;
+  }
+
+  /* ─── §01 thesis cards ──────────────────────────────────────────── */
+  .thesis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line-2); border: 1px solid var(--line-2); }
+  .axis {
+    background: var(--ink-2);
+    padding: 32px 28px;
+    position: relative;
+  }
+  .axis__num {
+    font-family: var(--serif); font-size: 56px;
+    color: var(--jade); line-height: 1;
+    margin-bottom: 4px;
+  }
+  .axis__name {
+    font-size: 10px; color: var(--text-mute);
+    letter-spacing: 0.26em; text-transform: uppercase;
+    margin-bottom: 24px;
+  }
+  .axis__title {
+    font-family: var(--serif); font-size: 24px;
+    line-height: 1.25; color: var(--text);
+    margin: 0 0 16px; min-height: 60px;
+  }
+  .axis__title .it { font-style: italic; color: var(--jade); }
+  .axis__body {
+    font-size: 12px; color: var(--text-dim);
+    line-height: 1.6; margin: 0 0 18px;
+  }
+  .axis__win {
+    padding-top: 16px;
+    border-top: 1px dashed var(--line-2);
+    font-family: var(--serif); font-style: italic;
+    font-size: 18px; color: var(--text);
+  }
+  .axis__win em { color: var(--jade); font-style: normal; font-weight: 500; font-family: var(--mono); }
+
+  /* ─── §02 schematic ─────────────────────────────────────────────── */
+  .schematic-wrap {
+    display: grid; grid-template-columns: minmax(0, 1fr) 360px;
+    gap: 32px; align-items: start;
+  }
+  .schematic {
+    position: relative;
+    aspect-ratio: 5 / 4;
+    width: 100%;
+    background: var(--ink-2);
+    border: 1px solid var(--line-2);
+    background-image:
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+  .schematic__corners { position: absolute; inset: 0; pointer-events: none; }
+  .schematic__corners::before, .schematic__corners::after {
+    position: absolute; font-size: 9px; letter-spacing: 0.2em;
+    color: var(--text-faint); font-family: var(--mono);
+  }
+  .schematic__corners::before { content: 'FIG.02 / V2 SCHEMATIC'; top: 12px; left: 14px; }
+  .schematic__corners::after  { content: 'EVENT-DRIVEN // REACTIVE'; bottom: 12px; right: 14px; }
+  .schematic svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+  .schematic .node {
+    position: absolute;
+    background: var(--ink-3);
+    border: 1px solid var(--line-3);
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: all 0.18s;
+    user-select: none;
+  }
+  .schematic .node:hover, .schematic .node.is-active {
+    border-color: var(--jade);
+    background: var(--jade-soft);
+    z-index: 5;
+  }
+  .schematic .node--new { border-color: var(--jade); border-style: solid; }
+  .schematic .node--new::after {
+    content: 'NEW'; position: absolute; top: -7px; right: 8px;
+    font-size: 8px; letter-spacing: 0.2em;
+    background: var(--jade); color: var(--ink);
+    padding: 1px 5px;
+  }
+  .schematic .node--upg { border-color: var(--mid); }
+  .schematic .node--upg::after {
+    content: 'UPGRADED'; position: absolute; top: -7px; right: 8px;
+    font-size: 8px; letter-spacing: 0.2em;
+    background: var(--mid); color: var(--ink);
+    padding: 1px 5px;
+  }
+  .schematic .node__num {
+    font-size: 9px; color: var(--jade);
+    letter-spacing: 0.2em; margin-bottom: 2px;
+  }
+  .schematic .node__name {
+    font-size: 12px; font-weight: 500;
+    color: var(--text); line-height: 1.2;
+  }
+  .schematic .node__role {
+    font-size: 10px; color: var(--text-mute);
+    margin-top: 4px; line-height: 1.3;
+  }
+  .schematic .node--ext {
+    background: transparent; border-style: dashed;
+  }
+  .schematic .node--ext .node__num { color: var(--text-mute); }
+  .schematic .node--ext .node__name {
+    color: var(--text-dim); font-style: italic;
+    font-family: var(--serif); font-size: 14px; font-weight: 400;
+  }
+
+  .flow-path {
+    fill: none; stroke: var(--line-3);
+    stroke-width: 1; stroke-dasharray: 3 3;
+    transition: stroke 0.2s;
+  }
+  .flow-path.is-active {
+    stroke: var(--jade); stroke-width: 1.5;
+    stroke-dasharray: none;
+    animation: flow 1.5s linear infinite;
+  }
+  @keyframes flow {
+    0% { stroke-dasharray: 4 4; stroke-dashoffset: 0; }
+    100% { stroke-dasharray: 4 4; stroke-dashoffset: -16; }
+  }
+  .flow-arrow { fill: var(--line-3); }
+  .flow-arrow.is-active { fill: var(--jade); }
+
+  .legend {
+    display: flex; gap: 18px; flex-wrap: wrap;
+    font-size: 10px; color: var(--text-mute);
+    letter-spacing: 0.12em; margin-top: 16px;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .sw { display: inline-block; width: 18px; height: 1px; background: var(--line-3); }
+  .legend .sw--solid { height: 2px; background: var(--jade); }
+  .legend .sw--ext { background: transparent; border-top: 1px dashed; height: 1px; color: var(--text-mute); }
+
+  .panel {
+    background: var(--ink-2);
+    border: 1px solid var(--line-2);
+    padding: 28px;
+    position: sticky;
+    top: 80px;
+  }
+  .panel__num {
+    font-family: var(--serif); font-size: 56px;
+    line-height: 1; color: var(--jade);
+    margin-bottom: 4px;
+  }
+  .panel__name {
+    font-size: 16px; font-weight: 500; color: var(--text);
+    margin-bottom: 6px;
+  }
+  .panel__status {
+    font-size: 9px; letter-spacing: 0.22em;
+    text-transform: uppercase;
+    margin-bottom: 18px; padding-bottom: 14px;
+    border-bottom: 1px dashed var(--line-2);
+  }
+  .panel__status.is-new { color: var(--jade); }
+  .panel__status.is-upg { color: var(--mid); }
+  .panel__status.is-unc { color: var(--low); }
+  .panel__status.is-rep { color: var(--crit); }
+
+  .panel__eli5 {
+    font-family: var(--serif); font-style: italic;
+    font-size: 18px; line-height: 1.4;
+    color: var(--text); margin: 0 0 18px;
+  }
+  .panel__row {
+    display: grid; grid-template-columns: 70px 1fr;
+    gap: 14px; margin-bottom: 14px; font-size: 11.5px;
+  }
+  .panel__row dt {
+    color: var(--text-mute); font-size: 9.5px;
+    letter-spacing: 0.16em; padding-top: 2px;
+  }
+  .panel__row dd { margin: 0; color: var(--text-dim); line-height: 1.5; }
+  .panel__row dd code {
+    background: var(--ink-3); border: 1px solid var(--line-2);
+    color: var(--jade); padding: 1px 5px; font-size: 10.5px;
+  }
+
+  /* ─── §03 component cards (the centerpiece) ────────────────────── */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1px;
+    background: var(--line-2);
+    border: 1px solid var(--line-2);
+  }
+  .card {
+    background: var(--ink-2);
+    padding: 36px 36px 32px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  .card__top {
+    display: grid;
+    grid-template-columns: 70px 1fr auto;
+    gap: 16px;
+    align-items: baseline;
+    margin-bottom: 24px;
+  }
+  .card__id {
+    font-family: var(--serif);
+    font-size: 56px; line-height: 0.9;
+    color: var(--jade);
+  }
+  .card__name {
+    font-size: 11px; letter-spacing: 0.22em;
+    color: var(--text-mute); text-transform: uppercase;
+  }
+  .card__name strong {
+    display: block; font-size: 16px;
+    color: var(--text); font-weight: 500;
+    letter-spacing: 0; text-transform: none;
+    margin-top: 4px;
+  }
+  .card__status {
+    font-size: 9px; letter-spacing: 0.22em;
+    padding: 4px 8px; border: 1px solid currentColor;
+    text-transform: uppercase; font-weight: 500;
+    align-self: start;
+  }
+  .card__status.is-new { color: var(--jade); }
+  .card__status.is-upg { color: var(--mid); }
+  .card__status.is-unc { color: var(--low); }
+  .card__status.is-rep { color: var(--crit); }
+
+  .card__what {
+    font-family: var(--serif); font-size: 26px;
+    line-height: 1.3; color: var(--text);
+    margin: 0 0 24px;
+  }
+  .card__what em { color: var(--jade); font-style: italic; }
+  .card__what strong { background: linear-gradient(transparent 65%, var(--jade-soft) 65%); font-weight: 400; }
+
+  .card__row {
+    display: grid; grid-template-columns: 70px 1fr;
+    gap: 16px;
+    padding: 14px 0;
+    border-top: 1px dashed var(--line-2);
+    font-size: 12px;
+  }
+  .card__row:first-of-type { border-top: 1px solid var(--line-2); }
+  .card__row dt {
+    color: var(--jade); font-size: 9.5px;
+    letter-spacing: 0.2em; padding-top: 2px;
+  }
+  .card__row dd {
+    margin: 0; color: var(--text-dim);
+    line-height: 1.55;
+  }
+  .card__row dd code {
+    background: var(--ink-3);
+    color: var(--jade); padding: 1px 5px;
+    font-size: 11px;
+    border: 1px solid var(--line-2);
+  }
+  .card__row dd .legacy {
+    color: var(--amber);
+    border-bottom: 1px dashed var(--amber);
+    cursor: help;
+  }
+
+  /* ─── §04 v1→v2 diff ───────────────────────────────────────────── */
+  .diff {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--line-2);
+    border: 1px solid var(--line-2);
+  }
+  .diff__col {
+    background: var(--ink-2);
+    padding: 32px 28px;
+  }
+  .diff__h {
+    font-family: var(--serif);
+    font-size: 28px;
+    margin: 0 0 8px;
+    line-height: 1;
+  }
+  .diff__h .it { font-style: italic; }
+  .diff__col--rem .diff__h .it { color: var(--crit); }
+  .diff__col--add .diff__h .it { color: var(--jade); }
+  .diff__col--upg .diff__h .it { color: var(--mid); }
+  .diff__sub {
+    font-size: 9.5px; letter-spacing: 0.24em;
+    color: var(--text-mute); text-transform: uppercase;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px dashed var(--line-2);
+  }
+  .diff__list { list-style: none; padding: 0; margin: 0; }
+  .diff__list li {
+    padding: 14px 0;
+    border-bottom: 1px dashed var(--line-2);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .diff__list li:last-child { border-bottom: 0; }
+  .diff__list strong {
+    display: block;
+    color: var(--text);
+    font-weight: 500;
+    font-size: 13px;
+    margin-bottom: 4px;
+  }
+  .diff__list span { color: var(--text-dim); font-size: 11.5px; }
+  .diff__list code {
+    background: var(--ink-3);
+    color: var(--jade);
+    padding: 1px 5px;
+    font-size: 10.5px;
+    border: 1px solid var(--line-2);
+  }
+  .diff__col--rem .diff__list strong::before { content: '× '; color: var(--crit); }
+  .diff__col--add .diff__list strong::before { content: '+ '; color: var(--jade); }
+  .diff__col--upg .diff__list strong::before { content: '↑ '; color: var(--mid); }
+
+  /* ─── §05 cost win ─────────────────────────────────────────────── */
+  .costwin {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    align-items: stretch;
+  }
+  .costchart {
+    background: var(--ink-2);
+    border: 1px solid var(--line-2);
+    padding: 36px 36px 32px;
+  }
+  .costchart__h {
+    font-size: 10px; letter-spacing: 0.26em;
+    color: var(--text-mute); text-transform: uppercase;
+    margin-bottom: 32px;
+  }
+  .bar { margin-bottom: 28px; }
+  .bar:last-child { margin-bottom: 0; }
+  .bar__label {
+    display: flex; justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+    font-size: 12px;
+  }
+  .bar__label strong {
+    color: var(--text);
+    font-weight: 500;
+    letter-spacing: 0.04em;
+  }
+  .bar__val {
+    font-family: var(--serif);
+    font-size: 32px;
+    line-height: 1;
+  }
+  .bar__val.v1 { color: var(--amber); }
+  .bar__val.v2 { color: var(--jade); }
+  .bar__track {
+    position: relative;
+    height: 12px;
+    background: var(--ink-3);
+    border: 1px solid var(--line-2);
+    overflow: hidden;
+  }
+  .bar__fill {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    transition: width 1.5s cubic-bezier(.6,.05,.3,1);
+  }
+  .bar__fill.v1 {
+    background: repeating-linear-gradient(135deg, var(--amber) 0, var(--amber) 4px, transparent 4px, transparent 8px);
+    border-right: 2px solid var(--amber);
+  }
+  .bar__fill.v2 {
+    background: repeating-linear-gradient(135deg, var(--jade) 0, var(--jade) 4px, transparent 4px, transparent 8px);
+    border-right: 2px solid var(--jade);
+  }
+  .bar__caption {
+    margin-top: 6px;
+    font-size: 10px;
+    color: var(--text-mute);
+    letter-spacing: 0.06em;
+  }
+  .costchart__delta {
+    margin-top: 32px;
+    padding-top: 28px;
+    border-top: 1px dashed var(--line-2);
+    text-align: center;
+  }
+  .costchart__delta .savings {
+    font-family: var(--serif);
+    font-size: 72px; line-height: 1;
+    color: var(--jade);
+  }
+  .costchart__delta .savings::before { content: '−'; }
+  .costchart__delta .label {
+    font-size: 10px; letter-spacing: 0.3em;
+    color: var(--text-mute);
+    text-transform: uppercase;
+    margin-top: 12px;
+  }
+
+  .latency {
+    background: var(--ink-2);
+    border: 1px solid var(--line-2);
+    padding: 36px 36px 32px;
+    display: flex; flex-direction: column;
+  }
+  .latency__h {
+    font-size: 10px; letter-spacing: 0.26em;
+    color: var(--text-mute); text-transform: uppercase;
+    margin-bottom: 32px;
+  }
+  .latency__rows { flex: 1; display: flex; flex-direction: column; justify-content: space-around; }
+  .latrow {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 16px; align-items: baseline;
+    padding: 12px 0;
+    border-top: 1px dashed var(--line-2);
+  }
+  .latrow:first-child { border-top: 0; }
+  .latrow__label {
+    font-size: 11px; letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-mute);
+  }
+  .latrow__val {
+    font-family: var(--serif);
+    font-size: 36px; line-height: 1;
+  }
+  .latrow__val.v1 { color: var(--amber); }
+  .latrow__val.v2 { color: var(--jade); }
+  .latrow__val small { font-size: 14px; color: var(--text-mute); margin-left: 4px; }
+  .latency__delta {
+    margin-top: 24px; padding-top: 20px;
+    border-top: 1px dashed var(--line-2);
+    font-family: var(--serif); font-style: italic;
+    font-size: 18px; color: var(--text);
+    text-align: center;
+  }
+  .latency__delta em { color: var(--jade); font-style: normal; font-family: var(--mono); }
+
+  /* ─── §06 migration ─────────────────────────────────────────────── */
+  .migration {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--line-2);
+    border: 1px solid var(--line-2);
+  }
+  .week {
+    background: var(--ink-2);
+    padding: 28px 24px 24px;
+    position: relative;
+  }
+  .week__num {
+    font-family: var(--serif);
+    font-size: 14px; color: var(--text-mute);
+    margin-bottom: 4px;
+  }
+  .week__num strong {
+    font-size: 56px;
+    color: var(--jade);
+    font-weight: 400;
+    line-height: 1;
+    display: block;
+  }
+  .week__title {
+    font-family: var(--serif);
+    font-size: 22px; line-height: 1.25;
+    color: var(--text);
+    margin: 24px 0 16px;
+    min-height: 52px;
+  }
+  .week__title .it { color: var(--jade); font-style: italic; }
+  .week__body {
+    font-size: 11.5px; color: var(--text-dim);
+    line-height: 1.55;
+  }
+  .week__body code {
+    background: var(--ink-3); color: var(--jade);
+    padding: 1px 4px; font-size: 10.5px;
+    border: 1px solid var(--line-2);
+  }
+  .week__risk {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--line-2);
+    font-size: 10px; letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+  .week__risk.low { color: var(--low); }
+  .week__risk.mid { color: var(--mid); }
+  .week__risk.high { color: var(--crit); }
+  .week__risk::before { content: 'RISK · '; color: var(--text-mute); }
+
+  /* ─── footer ─── */
+  footer.foot {
+    padding: 56px var(--gutter);
+    border-top: 1px solid var(--line-2);
+    text-align: center;
+    color: var(--text-mute);
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  footer.foot div { margin-bottom: 8px; }
+  footer.foot em { color: var(--jade); font-style: normal; }
+  footer.foot a { color: var(--amber); text-decoration: none; border-bottom: 1px dashed currentColor; }
+
+  /* ─── responsive ────────────────────────────────────────────────── */
+  @media (max-width: 1024px) {
+    .schematic-wrap { grid-template-columns: 1fr; }
+    .panel { position: static; }
+    .cards, .thesis, .diff { grid-template-columns: 1fr; }
+    .migration { grid-template-columns: 1fr 1fr; }
+    .costwin { grid-template-columns: 1fr; }
+    .cover__title { grid-template-columns: 1fr; gap: 32px; }
+    .cover__stats { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 640px) {
+    .cover__h1 { font-size: 64px; }
+    .sec__head { grid-template-columns: 1fr; }
+    .migration { grid-template-columns: 1fr; }
+    .card__top { grid-template-columns: 60px 1fr; }
+    .card__status { grid-column: 1 / -1; align-self: start; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     COVER
+═════════════════════════════════════════════════════════════════════ -->
+<header class="cover">
+  <div class="container">
+    <div class="cover__band">
+      <span>CLAUDE.WORKSPACE / RE / TG-TOKEN-GATES / 0002</span>
+      <span class="center pulse">REIMPLEMENTATION // V2</span>
+      <span class="right">2026.05.05 · POST-RECON SYNTHESIS</span>
+    </div>
+
+    <div class="cover__title">
+      <div>
+        <div class="cover__eyebrow">FILE 02 — V2 ARCHITECTURE</div>
+        <h1 class="cover__h1">Same goal,<br><span class="it">simpler</span> spine.<span class="small">/02</span></h1>
+      </div>
+      <p class="cover__sub">A reimplementation that uses Telegram as a real platform — letting Telegram do the work it now offers natively, and keeping our custom code only for the things only we can do.</p>
+    </div>
+
+    <div class="cover__stats">
+      <div>
+        <div class="label">Recurring infra cost</div>
+        <div class="big"><span class="it">−86%</span></div>
+        <div class="sub">~$850/mo <em>v1</em> → ~$120/mo v2 · Alchemy + Helius webhooks vs daily RPC sweep</div>
+      </div>
+      <div>
+        <div class="label">Eviction latency</div>
+        <div class="big"><span class="it">−99.9%</span></div>
+        <div class="sub">up to 24h <em>v1</em> → &lt;2 min v2 · event-driven instead of nightly cron</div>
+      </div>
+      <div>
+        <div class="label">Component count</div>
+        <div class="big"><span class="it">8 → 7</span></div>
+        <div class="sub">~30% custom code retired in favor of Telegram-native primitives</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     NAV
+═════════════════════════════════════════════════════════════════════ -->
+<nav class="nav" id="nav">
+  <div class="nav__inner">
+    <span class="nav__brand">◆ TG-GATES / V2</span>
+    <div class="nav__list" id="navList">
+      <a href="#thesis"><span class="num">01</span>Thesis</a>
+      <a href="#schematic"><span class="num">02</span>Schematic</a>
+      <a href="#cards"><span class="num">03</span>Components</a>
+      <a href="#diff"><span class="num">04</span>v1 → v2 Diff</a>
+      <a href="#cost"><span class="num">05</span>Cost Win</a>
+      <a href="#migration"><span class="num">06</span>Migration</a>
+    </div>
+    <span class="nav__legacy"><a href="architecture.html">↩ V1 RECON</a></span>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     01 — THESIS
+═════════════════════════════════════════════════════════════════════ -->
+<section class="sec" id="thesis">
+  <div class="container">
+    <div class="sec__head">
+      <div class="sec__num">01<small>THESIS</small></div>
+      <div>
+        <h2 class="sec__h2">Three <span class="it">independent</span> wins.</h2>
+        <p class="sec__lede">The current product wastes effort on three orthogonal axes. Fix any one in isolation; fix all three and the product becomes materially cheaper, faster, and easier to operate.</p>
+      </div>
+    </div>
+
+    <div class="thesis">
+
+      <article class="axis">
+        <div class="axis__num">01</div>
+        <div class="axis__name">Platform leverage</div>
+        <h3 class="axis__title">Stop reinventing what <span class="it">Telegram now ships</span>.</h3>
+        <p class="axis__body">Bot API has matured a lot since the product launched: join-request approval (5.4), Stars subscriptions (8.0), self-enforcing channel subscriptions (8.1), Mini Apps with HMAC auth, and native chat/user pickers. Six pieces of custom code can simply go.</p>
+        <div class="axis__win">~<em>30%</em> code surface retired</div>
+      </article>
+
+      <article class="axis">
+        <div class="axis__num">02</div>
+        <div class="axis__name">React, don't poll</div>
+        <h3 class="axis__title">Daily Purge → <span class="it">event-driven</span> re-verify.</h3>
+        <p class="axis__body">Rescanning every member's wallet every day is O(chats × members × tokens × chains) wasted work — almost everyone's balance is unchanged. Webhooks fire only when a relevant transfer happens.</p>
+        <div class="axis__win">~<em>−86%</em> RPC bill · <em>720×</em> faster eviction</div>
+      </article>
+
+      <article class="axis">
+        <div class="axis__num">03</div>
+        <div class="axis__name">Free signatures</div>
+        <h3 class="axis__title">Self-transfer dust → <span class="it">message signatures</span>.</h3>
+        <p class="axis__body">Self-transfer is clever (link-share immune, smart-wallet friendly) but charges users $0.50–$5 in gas on Ethereum L1. SIWE / SIWS / ton_proof do the same job for $0 with explicit replay semantics.</p>
+        <div class="axis__win"><em>$0</em> verification cost to user</div>
+      </article>
+
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     02 — SCHEMATIC
+═════════════════════════════════════════════════════════════════════ -->
+<section class="sec" id="schematic">
+  <div class="container">
+    <div class="sec__head">
+      <div class="sec__num">02<small>SCHEMATIC</small></div>
+      <div>
+        <h2 class="sec__h2">The <span class="it">v2 system</span>.</h2>
+        <p class="sec__lede">Seven internal components, four external dependencies. Hover or click any node — the right panel shows what it does in plain English and why it changed.</p>
+      </div>
+    </div>
+
+    <div class="schematic-wrap">
+      <div>
+        <div class="schematic" id="schematic">
+          <div class="schematic__corners"></div>
+
+          <svg viewBox="0 0 1000 800" preserveAspectRatio="none">
+            <defs>
+              <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" class="flow-arrow"/>
+              </marker>
+            </defs>
+
+            <!-- Users → Bot Worker -->
+            <path class="flow-path" data-edge="users-bot"     d="M 130 90 C 200 90, 220 180, 280 180" marker-end="url(#arrow)"/>
+            <!-- Bot Worker → Join Handler -->
+            <path class="flow-path" data-edge="bot-join"      d="M 480 200 L 540 200" marker-end="url(#arrow)"/>
+            <path class="flow-path" data-edge="join-bot"      d="M 540 220 L 480 220" marker-end="url(#arrow)"/>
+            <!-- Join Handler → Telegram (approve/decline) -->
+            <path class="flow-path" data-edge="join-tg"       d="M 640 170 C 680 130, 800 100, 880 90" marker-end="url(#arrow)"/>
+            <!-- Bot Worker → Auth Verifier -->
+            <path class="flow-path" data-edge="bot-auth"      d="M 380 240 C 380 320, 180 380, 180 410" marker-end="url(#arrow)"/>
+            <!-- Auth → MiniApp -->
+            <path class="flow-path" data-edge="auth-miniapp"  d="M 280 440 L 220 440" marker-end="url(#arrow)" style="display:none"/>
+            <!-- Holdings → RPC -->
+            <path class="flow-path" data-edge="hold-rpc"      d="M 410 510 C 410 600, 230 680, 200 700" marker-end="url(#arrow)"/>
+            <!-- Holdings ↔ Multichain Metrics -->
+            <path class="flow-path" data-edge="hold-mcm"      d="M 510 470 C 600 470, 620 610, 600 700" marker-end="url(#arrow)"/>
+            <!-- Net-Worth ← Holdings -->
+            <path class="flow-path" data-edge="nw-hold"       d="M 540 440 L 480 440" marker-end="url(#arrow)"/>
+            <!-- Net-Worth → Price Oracle -->
+            <path class="flow-path" data-edge="nw-px"         d="M 660 510 C 660 580, 800 660, 850 700" marker-end="url(#arrow)"/>
+            <!-- Webhooks → Re-verify Worker -->
+            <path class="flow-path" data-edge="wh-rev"        d="M 880 700 C 880 600, 220 600, 180 510" marker-end="url(#arrow)"/>
+            <!-- Re-verify → Holdings -->
+            <path class="flow-path" data-edge="rev-hold"      d="M 220 440 L 280 440" marker-end="url(#arrow)"/>
+            <!-- Re-verify → Join Handler -->
+            <path class="flow-path" data-edge="rev-join"      d="M 180 410 C 180 320, 580 320, 620 240" marker-end="url(#arrow)"/>
+            <!-- MiniApp → Settings (loop) -->
+            <path class="flow-path" data-edge="bot-set"       d="M 380 240 C 380 340, 800 340, 800 240" marker-end="url(#arrow)"/>
+          </svg>
+
+          <div class="node node--ext" style="left:1%; top:7%; width:12%;" data-node="users">
+            <div class="node__num">EXT-1</div>
+            <div class="node__name">TG Users</div>
+            <div class="node__role">owners + end-users</div>
+          </div>
+
+          <div class="node" style="left:28%; top:20%; width:20%;" data-node="bot">
+            <div class="node__num">C-01</div>
+            <div class="node__name">Bot Worker</div>
+            <div class="node__role">FSM / commands / dispatch</div>
+          </div>
+
+          <div class="node node--new" style="left:54%; top:20%; width:20%;" data-node="join">
+            <div class="node__num">C-02</div>
+            <div class="node__name">Join Request Handler</div>
+            <div class="node__role">approve / decline at door</div>
+          </div>
+
+          <div class="node node--ext" style="left:80%; top:6%; width:18%;" data-node="tgapi">
+            <div class="node__num">EXT-2</div>
+            <div class="node__name">Telegram Platform</div>
+            <div class="node__role">Bot API · Stars · Mini Apps</div>
+          </div>
+
+          <div class="node node--upg" style="left:8%; top:46%; width:18%;" data-node="auth">
+            <div class="node__num">C-03</div>
+            <div class="node__name">Auth Verifier</div>
+            <div class="node__role">SIWE · SIWS · ton_proof</div>
+          </div>
+
+          <div class="node" style="left:28%; top:46%; width:20%;" data-node="hold">
+            <div class="node__num">C-04</div>
+            <div class="node__name">Holdings Aggregator</div>
+            <div class="node__role">balance reads · cached</div>
+          </div>
+
+          <div class="node node--upg" style="left:54%; top:46%; width:20%;" data-node="nw">
+            <div class="node__num">C-05</div>
+            <div class="node__name">Net-Worth Pricer</div>
+            <div class="node__role">multi-source pricing</div>
+          </div>
+
+          <div class="node node--upg" style="left:80%; top:46%; width:18%;" data-node="miniapp">
+            <div class="node__num">C-07</div>
+            <div class="node__name">Mini App + Settings</div>
+            <div class="node__role">in-Telegram form UI</div>
+          </div>
+
+          <div class="node node--new" style="left:8%; top:76%; width:18%;" data-node="rev">
+            <div class="node__num">C-06</div>
+            <div class="node__name">Re-verify Worker</div>
+            <div class="node__role">event-driven, not cron</div>
+          </div>
+
+          <div class="node node--ext" style="left:30%; top:78%; width:18%;" data-node="rpc">
+            <div class="node__num">EXT-3</div>
+            <div class="node__name">Chain RPCs</div>
+            <div class="node__role">SOL · ETH · BASE · BNB</div>
+          </div>
+
+          <div class="node node--ext" style="left:54%; top:78%; width:20%;" data-node="mcm">
+            <div class="node__num">EXT-4</div>
+            <div class="node__name">multichain + price</div>
+            <div class="node__role">cross-chain · CG · TWAP</div>
+          </div>
+
+          <div class="node node--ext" style="left:80%; top:78%; width:18%;" data-node="wh">
+            <div class="node__num">EXT-5</div>
+            <div class="node__name">Webhook Providers</div>
+            <div class="node__role">Alchemy + Helius push</div>
+          </div>
+        </div>
+
+        <div class="legend">
+          <span><span class="sw"></span>data flow</span>
+          <span><span class="sw sw--solid"></span>active path (hover)</span>
+          <span><span class="sw sw--ext"></span>external dep</span>
+          <span style="color:var(--jade)">▣ NEW</span>
+          <span style="color:var(--mid)">▣ UPGRADED</span>
+          <span style="color:var(--text-mute)">▣ unchanged</span>
+        </div>
+      </div>
+
+      <aside class="panel" id="panel"></aside>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     03 — COMPONENT CARDS (ELI5)
+═════════════════════════════════════════════════════════════════════ -->
+<section class="sec" id="cards">
+  <div class="container">
+    <div class="sec__head">
+      <div class="sec__num">03<small>COMPONENTS</small></div>
+      <div>
+        <h2 class="sec__h2">In <span class="it">plain English</span>.</h2>
+        <p class="sec__lede">One card per component. The big italic line is what the component does in everyday language; the rows beneath are what it's built from and why it changed.</p>
+      </div>
+    </div>
+
+    <div class="cards" id="cardGrid"></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     04 — V1 → V2 DIFF
+═════════════════════════════════════════════════════════════════════ -->
+<section class="sec" id="diff">
+  <div class="container">
+    <div class="sec__head">
+      <div class="sec__num">04<small>DIFF</small></div>
+      <div>
+        <h2 class="sec__h2">What <span class="it">changed</span>.</h2>
+        <p class="sec__lede">Every line of v1 code falls into one of three buckets: deleted (Telegram or events do it now), upgraded (kept but improved), or new (didn't exist before).</p>
+      </div>
+    </div>
+
+    <div class="diff">
+      <div class="diff__col diff__col--rem">
+        <h3 class="diff__h"><span class="it">Removed</span></h3>
+        <p class="diff__sub">deleted from v2 / Telegram or events do this now</p>
+        <ul class="diff__list">
+          <li><strong>Daily Purge cron</strong><span>Rescanning every member every 24h. Replaced by event triggers + weekly belt-and-braces sweep.</span></li>
+          <li><strong>Ban-after-join hot path</strong><span><code>banChatMember</code> + <code>unbanChatMember</code> loop. Non-holders never get in to begin with.</span></li>
+          <li><strong>10-step DM wizard</strong><span>Linear FSM where one wrong tap restarts the chain. Replaced with a Mini App form.</span></li>
+          <li><strong>Self-transfer dust watcher</strong><span>Per-chain watcher matching <code>(from==to==addr, value==nonce)</code>. Replaced by free signatures.</span></li>
+          <li><strong>@username-keyed whitelist</strong><span>Broke when users renamed or had no public username. Replaced by numeric <code>tg_user_id</code>.</span></li>
+          <li><strong>Custom payment receipt code</strong><span>One-time SOL fee logic. Telegram Stars handles billing for paid tiers.</span></li>
+        </ul>
+      </div>
+
+      <div class="diff__col diff__col--upg">
+        <h3 class="diff__h"><span class="it">Upgraded</span></h3>
+        <p class="diff__sub">kept but improved / hardened against gaps</p>
+        <ul class="diff__list">
+          <li><strong>Auth Verifier (was: Wallet Link Service)</strong><span>Polymorphic dispatch on <code>method</code> column — SIWE / SIWS / ton_proof / dust as legacy. Smart-contract wallets via EIP-1271 / 6492.</span></li>
+          <li><strong>Net-Worth Pricer</strong><span>Multi-source: CoinGecko primary → on-chain TWAP fallback → Multichain Metrics for cross-chain unification only. Stale-mode flag.</span></li>
+          <li><strong>Settings Store + Mini App</strong><span>Real form UI instead of message-driven FSM. Whitelist on numeric IDs. Auth via <code>initData</code> HMAC.</span></li>
+          <li><strong>Holdings Aggregator</strong><span>Same role, way colder path — caches <code>(chain, address, token)</code> in Redis 5–15 min. Read on event, not on cron.</span></li>
+          <li><strong>Per-user one-shot invites</strong><span><code>createChatInviteLink(member_limit=1, expire=now+1h)</code>. Telegram audits per-link attribution for free.</span></li>
+        </ul>
+      </div>
+
+      <div class="diff__col diff__col--add">
+        <h3 class="diff__h"><span class="it">Added</span></h3>
+        <p class="diff__sub">new in v2 / capabilities that didn't exist before</p>
+        <ul class="diff__list">
+          <li><strong>Join Request Handler</strong><span>Subscribes to <code>chat_join_request</code>; runs gate predicate; calls <code>approveChatJoinRequest</code> or <code>declineChatJoinRequest</code>.</span></li>
+          <li><strong>Re-verify Worker (event-driven)</strong><span>Consumes Alchemy + Helius webhooks; idempotent on <code>(chain, txhash, logIndex)</code>; reorg buffer; weekly fallback sweep.</span></li>
+          <li><strong>Webhook subscription layer</strong><span>Alchemy Address Activity for EVM (100k addrs/webhook) + Helius Enhanced Webhooks for Solana.</span></li>
+          <li><strong>EIP-1271 / 6492 verifier</strong><span>Smart-contract wallets (Safe, Argent, Coinbase Smart Wallet) work for free with signatures.</span></li>
+          <li><strong>Stars subscription path</strong><span><code>createInvoiceLink(currency='XTR', subscription_period=2592000)</code>. Telegram self-renews; auto-removes lapsed users on channels.</span></li>
+          <li><strong>Mini App settings frontend</strong><span>Vite + React on Vercel · authed by <code>initData</code> HMAC · serves both owner config and end-user verify.</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     05 — COST WIN
+═════════════════════════════════════════════════════════════════════ -->
+<section class="sec" id="cost">
+  <div class="container">
+    <div class="sec__head">
+      <div class="sec__num">05<small>COST</small></div>
+      <div>
+        <h2 class="sec__h2">The <span class="it">cost win</span>.</h2>
+        <p class="sec__lede">Back-of-envelope on a 1,000-chat × 100-member workload across 3 tokens × 4 chains. Numbers are approximate but the order of magnitude holds.</p>
+      </div>
+    </div>
+
+    <div class="costwin">
+      <div class="costchart">
+        <div class="costchart__h">RECURRING INFRA · USD/MONTH</div>
+
+        <div class="bar">
+          <div class="bar__label">
+            <strong>v1 — daily Purge</strong>
+            <span class="bar__val v1">$850</span>
+          </div>
+          <div class="bar__track">
+            <div class="bar__fill v1" style="width:100%"></div>
+          </div>
+          <div class="bar__caption">~36M balanceOf / mo · Alchemy CU + Helius credits</div>
+        </div>
+
+        <div class="bar">
+          <div class="bar__label">
+            <strong>v2 — event-driven</strong>
+            <span class="bar__val v2">$120</span>
+          </div>
+          <div class="bar__track">
+            <div class="bar__fill v2" style="width:14%"></div>
+          </div>
+          <div class="bar__caption">~3M webhook events / mo · 5–15 min Redis cache · weekly sweep</div>
+        </div>
+
+        <div class="costchart__delta">
+          <div class="savings">86%</div>
+          <div class="label">PER-MONTH SAVING</div>
+        </div>
+      </div>
+
+      <div class="latency">
+        <div class="latency__h">EVICTION LATENCY · WORST-CASE</div>
+
+        <div class="latency__rows">
+          <div class="latrow">
+            <span class="latrow__label">v1 daily Purge</span>
+            <span class="latrow__val v1">24<small>h</small></span>
+          </div>
+          <div class="latrow">
+            <span class="latrow__label">v1 manual purge</span>
+            <span class="latrow__val v1">24<small>h cooldown</small></span>
+          </div>
+          <div class="latrow">
+            <span class="latrow__label">v2 webhook + reorg buffer</span>
+            <span class="latrow__val v2">&lt;2<small>min</small></span>
+          </div>
+          <div class="latrow">
+            <span class="latrow__label">v2 confirm-and-evict</span>
+            <span class="latrow__val v2">~30<small>min</small></span>
+          </div>
+        </div>
+
+        <div class="latency__delta">~<em>720×</em> faster eviction on the hot path</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     06 — MIGRATION TIMELINE
+═════════════════════════════════════════════════════════════════════ -->
+<section class="sec" id="migration">
+  <div class="container">
+    <div class="sec__head">
+      <div class="sec__num">06<small>MIGRATION</small></div>
+      <div>
+        <h2 class="sec__h2">Four <span class="it">weeks</span>.</h2>
+        <p class="sec__lede">Single dev. Each week is independently shippable; each previous week's work keeps running until the next is shadow-validated. Nothing flips on a single day.</p>
+      </div>
+    </div>
+
+    <div class="migration">
+
+      <article class="week">
+        <div class="week__num">WK<strong>01</strong></div>
+        <h3 class="week__title">Switch to <span class="it">approve-before-join</span></h3>
+        <p class="week__body">Flip every gated chat to invite links with <code>creates_join_request: true</code>. Subscribe to <code>chat_join_request</code> in <code>allowed_updates</code>. Run the gate predicate, then approve or decline. The old ban-after-join code path becomes dead code.</p>
+        <div class="week__risk low">LOW · ADDITIVE</div>
+      </article>
+
+      <article class="week">
+        <div class="week__num">WK<strong>02</strong></div>
+        <h3 class="week__title">Wire up <span class="it">webhooks</span> in shadow</h3>
+        <p class="week__body">Provision Alchemy Address Activity for EVM + Helius Enhanced Webhooks for Solana. Route to a "potentially-disqualifying" queue. Daily Purge keeps running — webhook decisions are logged but not enforced yet. Compare the two outputs for 7 days.</p>
+        <div class="week__risk low">LOW · SHADOW MODE</div>
+      </article>
+
+      <article class="week">
+        <div class="week__num">WK<strong>03</strong></div>
+        <h3 class="week__title">Build the <span class="it">Mini App</span></h3>
+        <p class="week__body">Vite + React on Vercel. Auth via <code>initData</code> HMAC. Use <code>KeyboardButtonRequestChat</code> to pick the chat to gate, <code>KeyboardButtonRequestUsers</code> for whitelist. Migrate whitelist storage to numeric <code>tg_user_id</code>. The DM wizard stays as fallback for old clients.</p>
+        <div class="week__risk mid">MID · NEW SURFACE</div>
+      </article>
+
+      <article class="week">
+        <div class="week__num">WK<strong>04</strong></div>
+        <h3 class="week__title">Ship <span class="it">free signatures</span> + retire Purge</h3>
+        <p class="week__body">Add SIWE / SIWS / ton_proof verifiers behind a <code>method</code> column. Self-transfer dust stays as fallback. Once webhook shadow has matched daily Purge for 7 days, retire the daily cron in favor of weekly belt-and-braces. Monitor for 2 weeks.</p>
+        <div class="week__risk mid">MID · CUTOVER</div>
+      </article>
+
+    </div>
+  </div>
+</section>
+
+<footer class="foot">
+  <div class="container">
+    <div>END OF FILE 0002 · TG-TOKEN-GATES · V2 ARCHITECTURE</div>
+    <div>SYNTHESIS OF <em>3 PARALLEL AGENT INVESTIGATIONS</em> · COMPILED 2026.05.05</div>
+    <div>SEE ALSO <a href="architecture.html">FILE 0001 — V1 RECON</a> · <a href="IMPROVED_ARCHITECTURE.md">IMPROVED_ARCHITECTURE.md</a></div>
+  </div>
+</footer>
+
+<script>
+/* ─── component data with ELI5 ────────────────────────────────────── */
+const COMPS = {
+  bot: {
+    num:'C-01', name:'Bot Worker', status:'unc',
+    eli5:'The brain. Listens to Telegram, decides what to do, sends replies.',
+    why:'Without this, nothing happens — every Telegram update arrives here first and is dispatched to a handler.',
+    tech:'aiogram 3 / grammY · long-poll or webhook · stateless dispatcher · subscribes to chat_join_request + chat_member + successful_payment',
+    edges:['users-bot','bot-join','join-bot','bot-auth','bot-set']
+  },
+  join: {
+    num:'C-02', name:'Join Request Handler', status:'new',
+    eli5:'The doorman. When someone asks to join, it checks their wallet and lets them in — or quietly turns them away.',
+    why:'In v1 the bot let everyone in then banned non-holders later. In v2 non-holders never enter to begin with — Telegram holds the door for us.',
+    tech:'subscribes to chat_join_request · runs gate predicate · calls approveChatJoinRequest or declineChatJoinRequest · per-user one-shot invites via createChatInviteLink(member_limit=1)',
+    edges:['bot-join','join-bot','join-tg','rev-join']
+  },
+  auth: {
+    num:'C-03', name:'Auth Verifier', status:'upg',
+    eli5:'Proves you own the wallet you claim. Free in v2 — sign a message, no gas needed.',
+    why:'Replaces v1\'s self-transfer-of-dust scheme. Free for users on every chain. Smart-contract wallets supported via EIP-1271/6492. Dust stays as a legacy method for users who prefer it.',
+    tech:'polymorphic dispatch on method column · viem.verifyMessage for EIP-1271/6492 · @tonconnect for ton_proof · Phantom signIn (SIWS) for Solana · server-issued nonce bound to (tg_user_id, chat_id)',
+    edges:['bot-auth']
+  },
+  hold: {
+    num:'C-04', name:'Holdings Aggregator', status:'unc',
+    eli5:'Reads how much of each token a wallet holds, across all four chains.',
+    why:'Gates need a number — "do you hold ≥ N tokens?" This component fetches that number on demand. Same role as v1 but rarely invoked: now reads on event, not on cron.',
+    tech:'Alchemy multi-chain (EVM) · Helius DAS (Solana) · Redis cache 5–15 min on (chain, address, token) · multicall on EVM',
+    edges:['hold-rpc','hold-mcm','rev-hold','nw-hold']
+  },
+  nw: {
+    num:'C-05', name:'Net-Worth Pricer', status:'upg',
+    eli5:'Adds up your wallets in dollars across all chains. Used by net-worth gates.',
+    why:'In v1 this was effectively a single-vendor dependency on multichainmetrics.com. v2 adds CoinGecko + on-chain TWAP fallbacks so a single vendor outage degrades gracefully instead of breaking gates.',
+    tech:'CoinGecko primary · on-chain TWAP fallback · Multichain Metrics used only for cross-chain token unification · stale-mode flag surfaced in /networth',
+    edges:['nw-hold','nw-px']
+  },
+  rev: {
+    num:'C-06', name:'Re-verify Worker', status:'rep',
+    eli5:'Watches the chain for transfers. Only checks members when something actually changes — not every day.',
+    why:'Replaces the v1 daily Purge cron entirely. ~85% cheaper, ~720× faster eviction. Webhooks at-least-once, so an idempotency key on (chain, txhash, logIndex) is required.',
+    tech:'consumes Alchemy Address Activity + Helius Enhanced Webhooks · 5–12 block reorg buffer (EVM) · confirmed commitment (Solana) · weekly belt-and-braces full sweep · idempotent eviction queue',
+    edges:['wh-rev','rev-hold','rev-join']
+  },
+  miniapp: {
+    num:'C-07', name:'Mini App + Settings Store', status:'upg',
+    eli5:'Where chat owners configure everything — in a real form UI inside Telegram.',
+    why:'Replaces the v1 10-step DM wizard. Whitelist now keyed on numeric tg_user_id, fixing the @username-churn bug. Same Settings Store underneath, just a real frontend on top.',
+    tech:'Vite + React on Vercel · auth via initData HMAC (HMAC_SHA256(bot_token, "WebAppData")) · KeyboardButtonRequestUsers / RequestChat for native pickers · Postgres for state',
+    edges:['bot-set']
+  },
+  /* externals */
+  users:   { num:'EXT-1', name:'Telegram Users', kind:'external',
+             eli5:'Two roles: chat owners who configure the gates, and end-users who verify a wallet to join.',
+             why:'The whole product exists for them. They never see most of the components — only the bot and the Mini App.',
+             tech:'no install required · works on any Telegram client ≥ 6.0 (older clients fall back to DM-only flow)',
+             edges:['users-bot'] },
+  tgapi:   { num:'EXT-2', name:'Telegram Platform', kind:'external',
+             eli5:'Telegram itself. In v2 it does much more of the work: bills paid tiers, hosts Mini Apps, mediates join requests.',
+             why:'Every primitive we lean on (join requests, Stars subscriptions, chat_member events, Mini Apps) is a piece of code we no longer have to write or operate.',
+             tech:'Bot API ≥ 8.1 · Stars (XTR) subscriptions · Mini Apps + initData HMAC · ChatJoinRequest / ChatMemberUpdated updates',
+             edges:['join-tg'] },
+  rpc:     { num:'EXT-3', name:'Chain RPCs', kind:'external',
+             eli5:'The blockchains themselves. We still read balances here — just way less often than before.',
+             why:'Webhooks tell us when something changed; the RPC is where we read the actual current balance to confirm. Used on event, not on cron.',
+             tech:'Alchemy multi-chain (EVM) · Helius (Solana) · multicall + Redis cache reduce read volume by ~95%',
+             edges:['hold-rpc'] },
+  mcm:     { num:'EXT-4', name:'Multichain + Price Oracle', kind:'external',
+             eli5:'Tells us when "PEPE on Ethereum" and "PEPE on Base" are the same token, and what they\'re worth in dollars.',
+             why:'Multichain Metrics handles cross-chain token unification. CoinGecko + on-chain TWAP handle pricing. Splitting the two sources removes the v1 single-vendor risk.',
+             tech:'multichainmetrics.com (cross-chain only) · CoinGecko Pro (primary pricing) · on-chain TWAP via Uniswap v3 / Raydium pools (fallback)',
+             edges:['hold-mcm','nw-px'] },
+  wh:      { num:'EXT-5', name:'Webhook Providers', kind:'external',
+             eli5:'Push us a notification when a relevant transfer happens, so we don\'t have to poll.',
+             why:'This is the single biggest cost saving in v2. Polling the chain every 24h to find changes is wasteful when providers will tell us within seconds for a fraction of the price.',
+             tech:'Alchemy Address Activity (EVM, 100k addresses/webhook) · Helius Enhanced Webhooks (Solana, transactionTypes filter) · at-least-once delivery → idempotency required',
+             edges:['wh-rev'] }
+};
+
+const STATUS_LABEL = { new:'NEW', upg:'UPGRADED', unc:'UNCHANGED', rep:'REPLACES PURGE', external:'EXTERNAL' };
+
+/* ─── interactive schematic panel ─────────────────────────────────── */
+const PANEL = document.getElementById('panel');
+const SCHEM = document.getElementById('schematic');
+
+function renderPanel(key) {
+  const n = COMPS[key]; if (!n) return;
+  const statusCls = n.status || 'external';
+  PANEL.innerHTML = `
+    <div class="panel__num">${n.num}</div>
+    <div class="panel__name">${n.name}</div>
+    <div class="panel__status is-${statusCls.slice(0,3)}">${STATUS_LABEL[statusCls] || statusCls.toUpperCase()}</div>
+    <p class="panel__eli5">${n.eli5}</p>
+    <dl class="panel__row"><dt>WHY</dt><dd>${n.why}</dd></dl>
+    <dl class="panel__row"><dt>TECH</dt><dd>${n.tech}</dd></dl>
+  `;
+  SCHEM.querySelectorAll('.node').forEach(el => el.classList.toggle('is-active', el.dataset.node === key));
+  const edges = n.edges || [];
+  SCHEM.querySelectorAll('.flow-path').forEach(el => el.classList.toggle('is-active', edges.includes(el.dataset.edge)));
+}
+SCHEM.querySelectorAll('.node').forEach(el => {
+  el.addEventListener('mouseenter', () => renderPanel(el.dataset.node));
+  el.addEventListener('click', () => renderPanel(el.dataset.node));
+});
+renderPanel('join'); /* lead with the most distinctive new component */
+
+/* ─── render component cards (the centerpiece) ────────────────────── */
+const CARD_ORDER = ['bot','join','auth','hold','nw','rev','miniapp'];
+const STATUS_TXT = { new:'NEW', upg:'UPGRADED', unc:'UNCHANGED', rep:'REPLACES PURGE' };
+
+const grid = document.getElementById('cardGrid');
+grid.innerHTML = CARD_ORDER.map(k => {
+  const n = COMPS[k];
+  return `
+  <article class="card">
+    <div class="card__top">
+      <div class="card__id">${n.num}</div>
+      <div class="card__name">component<strong>${n.name}</strong></div>
+      <div class="card__status is-${n.status}">${STATUS_TXT[n.status]}</div>
+    </div>
+    <p class="card__what">${n.eli5}</p>
+    <dl class="card__row"><dt>WHY</dt><dd>${n.why}</dd></dl>
+    <dl class="card__row"><dt>TECH</dt><dd>${n.tech}</dd></dl>
+  </article>`;
+}).join('');
+
+/* ─── scroll-spy nav ──────────────────────────────────────────────── */
+const NAV_LINKS = document.querySelectorAll('#navList a');
+const SECTIONS = [...document.querySelectorAll('section.sec')];
+const obs = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      const id = e.target.id;
+      NAV_LINKS.forEach(a => a.classList.toggle('is-active', a.getAttribute('href') === '#' + id));
+    }
+  });
+}, { rootMargin: '-40% 0px -55% 0px' });
+SECTIONS.forEach(s => obs.observe(s));
+
+/* ─── animate cost bars on first reveal ───────────────────────────── */
+const costObs = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.querySelectorAll('.bar__fill').forEach(f => {
+        const w = f.style.width;
+        f.style.width = '0%';
+        requestAnimationFrame(() => requestAnimationFrame(() => f.style.width = w));
+      });
+      costObs.unobserve(e.target);
+    }
+  });
+}, { rootMargin: '-100px 0px' });
+const cs = document.getElementById('cost'); if (cs) costObs.observe(cs);
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1733 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TG Token Gates — Intercept Report 0001</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  /* ─── design tokens ─────────────────────────────────────────────── */
+  :root {
+    --ink:        #0a0d12;
+    --ink-2:      #0e1218;
+    --ink-3:      #11161e;
+    --paper:      #ece7d9;
+    --line:       rgba(170, 185, 200, 0.07);
+    --line-2:     rgba(170, 185, 200, 0.18);
+    --line-3:     rgba(170, 185, 200, 0.32);
+
+    --text:       #d6dce5;
+    --text-dim:   #8c95a3;
+    --text-mute:  #5b6471;
+    --text-faint: #383f49;
+
+    --amber:      #ffb86b;
+    --amber-dim:  #b87f44;
+    --jade:       #6ee7d8;
+    --jade-dim:   #3a8a82;
+
+    --crit:       #ff5d8f;
+    --mid:        #ffd66e;
+    --low:        #b9e88c;
+
+    --tg:         #2aabee;
+    --sol:        #b794ff;
+    --eth:        #8aa2ff;
+
+    --serif:      'Instrument Serif', 'Times New Roman', serif;
+    --mono:       'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+
+    --maxw:       1280px;
+    --gutter:     32px;
+  }
+
+  /* ─── reset / base ──────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--text);
+    background: var(--ink);
+    background-image:
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 40px 40px;
+    background-position: -1px -1px;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  /* persistent CRT scanline overlay */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent 0,
+      transparent 2px,
+      rgba(255,255,255,0.012) 3px,
+      transparent 4px
+    );
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  /* corner registration marks (drawing-board feel) */
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 99;
+    background:
+      linear-gradient(to right, var(--line-3) 1px, transparent 1px) 24px 24px / 16px 1px no-repeat,
+      linear-gradient(to bottom, var(--line-3) 1px, transparent 1px) 24px 24px / 1px 16px no-repeat,
+      linear-gradient(to left,  var(--line-3) 1px, transparent 1px) calc(100% - 24px) 24px / 16px 1px no-repeat,
+      linear-gradient(to bottom,var(--line-3) 1px, transparent 1px) calc(100% - 24px) 24px / 1px 16px no-repeat,
+      linear-gradient(to right, var(--line-3) 1px, transparent 1px) 24px calc(100% - 24px) / 16px 1px no-repeat,
+      linear-gradient(to top,   var(--line-3) 1px, transparent 1px) 24px calc(100% - 24px) / 1px 16px no-repeat,
+      linear-gradient(to left,  var(--line-3) 1px, transparent 1px) calc(100% - 24px) calc(100% - 24px) / 16px 1px no-repeat,
+      linear-gradient(to top,   var(--line-3) 1px, transparent 1px) calc(100% - 24px) calc(100% - 24px) / 1px 16px no-repeat;
+  }
+
+  ::selection { background: var(--amber); color: var(--ink); }
+
+  a { color: inherit; text-decoration: none; }
+  a:hover { color: var(--amber); }
+  hr { border: 0; border-top: 1px solid var(--line-2); margin: 0; }
+
+  .serif { font-family: var(--serif); font-style: normal; }
+  .serif.italic { font-style: italic; }
+  .uc { text-transform: uppercase; letter-spacing: 0.08em; }
+  .dim { color: var(--text-dim); }
+  .mute { color: var(--text-mute); }
+  .num { font-variant-numeric: tabular-nums; }
+
+  .container {
+    max-width: var(--maxw);
+    margin: 0 auto;
+    padding: 0 var(--gutter);
+  }
+
+  /* ─── cover sheet ───────────────────────────────────────────────── */
+  .cover {
+    position: relative;
+    padding: 56px var(--gutter) 80px;
+    border-bottom: 1px solid var(--line-2);
+  }
+  .cover__band {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 20px;
+    font-size: 10.5px;
+    color: var(--text-mute);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    padding-bottom: 10px;
+    border-bottom: 1px dashed var(--line-2);
+  }
+  .cover__band .center { text-align: center; color: var(--amber); }
+  .cover__band .right { text-align: right; }
+  .cover__band .blink::after {
+    content: '●';
+    margin-left: 8px;
+    color: var(--crit);
+    animation: blink 1.6s steps(2, end) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0.2; } }
+
+  .cover__title {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    gap: 64px;
+    align-items: end;
+    margin-top: 56px;
+  }
+  .cover__eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    color: var(--amber);
+    margin-bottom: 28px;
+  }
+  .cover__h1 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(64px, 11vw, 168px);
+    line-height: 0.88;
+    letter-spacing: -0.02em;
+    margin: 0;
+    color: var(--text);
+  }
+  .cover__h1 .it { font-style: italic; color: var(--amber); }
+  .cover__h1 .small { font-size: 0.45em; vertical-align: super; color: var(--text-mute); margin-left: 0.2em; letter-spacing: 0; font-style: normal; }
+  .cover__sub {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: clamp(18px, 1.6vw, 22px);
+    color: var(--text-dim);
+    line-height: 1.4;
+    margin: 0 0 8px;
+    max-width: 36ch;
+  }
+  .cover__sub::before { content: '“'; color: var(--amber); margin-right: 4px; }
+  .cover__sub::after  { content: '”'; color: var(--amber); margin-left: 4px; }
+
+  .cover__meta {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0;
+    margin-top: 64px;
+    border-top: 1px solid var(--line-2);
+    border-bottom: 1px solid var(--line-2);
+  }
+  .cover__meta > div {
+    padding: 18px 16px 18px 0;
+    border-right: 1px dashed var(--line-2);
+  }
+  .cover__meta > div:last-child { border-right: 0; }
+  .cover__meta > div:not(:first-child) { padding-left: 16px; }
+  .cover__meta dt {
+    font-size: 9.5px;
+    letter-spacing: 0.22em;
+    color: var(--text-mute);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .cover__meta dd {
+    margin: 0;
+    font-size: 13px;
+    color: var(--text);
+  }
+
+  .cover__ticker {
+    margin-top: 32px;
+    padding: 12px 18px;
+    background: var(--ink-2);
+    border: 1px solid var(--line-2);
+    overflow: hidden;
+    position: relative;
+    font-size: 11.5px;
+    color: var(--text-dim);
+    letter-spacing: 0.04em;
+  }
+  .cover__ticker::before {
+    content: 'TELEMETRY';
+    position: absolute;
+    top: 50%; left: 18px;
+    transform: translateY(-50%);
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    color: var(--jade);
+    background: var(--ink-2);
+    padding-right: 14px;
+    z-index: 2;
+  }
+  .ticker-tape {
+    display: inline-block;
+    padding-left: 110px;
+    white-space: nowrap;
+    animation: tape 60s linear infinite;
+  }
+  .ticker-tape span { color: var(--text); }
+  .ticker-tape em { font-style: normal; color: var(--amber); }
+  .ticker-tape .sep { color: var(--text-faint); margin: 0 18px; }
+  @keyframes tape {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+  }
+
+  /* ─── anchor nav ────────────────────────────────────────────────── */
+  .nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: rgba(10, 13, 18, 0.92);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line-2);
+    border-top: 1px solid var(--line-2);
+  }
+  .nav__inner {
+    max-width: var(--maxw);
+    margin: 0 auto;
+    padding: 14px var(--gutter);
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    overflow-x: auto;
+  }
+  .nav__brand {
+    color: var(--amber);
+    font-weight: 500;
+    flex-shrink: 0;
+  }
+  .nav__list { display: flex; gap: 24px; flex: 1; }
+  .nav__list a {
+    color: var(--text-dim);
+    transition: color 0.15s;
+    flex-shrink: 0;
+  }
+  .nav__list a .num { color: var(--text-faint); margin-right: 6px; }
+  .nav__list a:hover, .nav__list a.is-active { color: var(--text); }
+  .nav__list a.is-active .num { color: var(--amber); }
+  .nav__live {
+    flex-shrink: 0;
+    color: var(--jade);
+    font-size: 10px;
+    letter-spacing: 0.3em;
+  }
+  .nav__live::before {
+    content: '';
+    display: inline-block;
+    width: 6px; height: 6px;
+    background: var(--jade);
+    border-radius: 50%;
+    margin-right: 6px;
+    box-shadow: 0 0 10px var(--jade);
+    animation: blink 2s ease infinite;
+  }
+
+  /* ─── section frame ─────────────────────────────────────────────── */
+  section.sec {
+    padding: 96px 0 64px;
+    border-bottom: 1px solid var(--line-2);
+    position: relative;
+  }
+  .sec__head {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    gap: 24px;
+    margin-bottom: 56px;
+    align-items: start;
+  }
+  .sec__num {
+    font-family: var(--serif);
+    font-size: 64px;
+    line-height: 1;
+    color: var(--amber);
+  }
+  .sec__num small {
+    display: block;
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text-mute);
+    letter-spacing: 0.3em;
+    margin-top: 8px;
+  }
+  .sec__h2 {
+    font-family: var(--serif);
+    font-size: clamp(34px, 5vw, 56px);
+    line-height: 1;
+    letter-spacing: -0.01em;
+    margin: 0 0 12px;
+    color: var(--text);
+    font-weight: 400;
+  }
+  .sec__h2 .it { font-style: italic; color: var(--text-dim); }
+  .sec__lede {
+    max-width: 60ch;
+    color: var(--text-dim);
+    font-size: 14px;
+    margin: 0;
+  }
+
+  /* ─── section 01 — subject ──────────────────────────────────────── */
+  .subject {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 64px;
+  }
+  .subject__lede {
+    font-family: var(--serif);
+    font-size: clamp(22px, 2.4vw, 30px);
+    line-height: 1.35;
+    color: var(--text);
+    margin: 0;
+  }
+  .subject__lede em { color: var(--amber); font-style: italic; }
+  .subject__lede strong { color: var(--text); font-weight: 400; background: linear-gradient(transparent 60%, rgba(255,184,107,0.18) 60%); }
+
+  .factbox {
+    border: 1px solid var(--line-2);
+    background: var(--ink-2);
+    padding: 28px 32px;
+  }
+  .factbox h4 {
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    color: var(--text-mute);
+    text-transform: uppercase;
+    margin: 0 0 18px;
+    padding-bottom: 12px;
+    border-bottom: 1px dashed var(--line-2);
+  }
+  .factbox dl {
+    margin: 0;
+    display: grid;
+    grid-template-columns: 130px 1fr;
+    gap: 14px 20px;
+  }
+  .factbox dt { color: var(--text-mute); font-size: 11px; }
+  .factbox dd { margin: 0; color: var(--text); font-size: 12px; }
+  .factbox dd code {
+    background: var(--ink-3);
+    padding: 1px 6px;
+    border: 1px solid var(--line-2);
+    color: var(--amber);
+    font-size: 11px;
+  }
+
+  /* ─── section 02 — schematic ────────────────────────────────────── */
+  .schematic-wrap {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    gap: 32px;
+    align-items: start;
+  }
+
+  .schematic {
+    position: relative;
+    aspect-ratio: 5 / 4;
+    width: 100%;
+    background: var(--ink-2);
+    border: 1px solid var(--line-2);
+    background-image:
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+  .schematic__corners {
+    position: absolute; inset: 0;
+    pointer-events: none;
+  }
+  .schematic__corners::before,
+  .schematic__corners::after {
+    position: absolute;
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    color: var(--text-faint);
+    font-family: var(--mono);
+  }
+  .schematic__corners::before { content: 'FIG.02 / SYSTEM SCHEMATIC'; top: 12px; left: 14px; }
+  .schematic__corners::after  { content: 'SCALE 1:1 // INFERRED'; bottom: 12px; right: 14px; }
+
+  .schematic svg {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+  }
+  .schematic .node {
+    position: absolute;
+    background: var(--ink-3);
+    border: 1px solid var(--line-3);
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: all 0.18s;
+    user-select: none;
+  }
+  .schematic .node:hover,
+  .schematic .node.is-active {
+    border-color: var(--amber);
+    background: rgba(255, 184, 107, 0.08);
+    z-index: 5;
+  }
+  .schematic .node__num {
+    font-size: 9px;
+    color: var(--amber);
+    letter-spacing: 0.2em;
+    margin-bottom: 2px;
+  }
+  .schematic .node__name {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text);
+    line-height: 1.2;
+  }
+  .schematic .node__role {
+    font-size: 10px;
+    color: var(--text-mute);
+    margin-top: 4px;
+    line-height: 1.3;
+  }
+  .schematic .node--ext {
+    background: transparent;
+    border-style: dashed;
+  }
+  .schematic .node--ext .node__num { color: var(--jade); }
+  .schematic .node--ext .node__name { color: var(--text-dim); font-style: italic; font-family: var(--serif); font-size: 14px; font-weight: 400; }
+
+  /* SVG paths */
+  .flow-path {
+    fill: none;
+    stroke: var(--line-3);
+    stroke-width: 1;
+    stroke-dasharray: 3 3;
+    transition: stroke 0.2s;
+  }
+  .flow-path.is-active {
+    stroke: var(--amber);
+    stroke-width: 1.5;
+    stroke-dasharray: none;
+    animation: flow 1.5s linear infinite;
+  }
+  @keyframes flow {
+    0% { stroke-dasharray: 4 4; stroke-dashoffset: 0; }
+    100% { stroke-dasharray: 4 4; stroke-dashoffset: -16; }
+  }
+  .flow-arrow { fill: var(--line-3); }
+  .flow-path.is-active + .flow-arrow,
+  .flow-arrow.is-active { fill: var(--amber); }
+
+  .legend {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    font-size: 10px;
+    color: var(--text-mute);
+    letter-spacing: 0.12em;
+    margin-top: 16px;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .sw {
+    display: inline-block;
+    width: 18px; height: 1px;
+    background: var(--line-3);
+  }
+  .legend .sw--solid { height: 2px; background: var(--amber); }
+  .legend .sw--ext { background: transparent; border-top: 1px dashed var(--jade); height: 1px; }
+
+  .panel {
+    background: var(--ink-2);
+    border: 1px solid var(--line-2);
+    padding: 28px;
+    position: sticky;
+    top: 80px;
+  }
+  .panel__num {
+    font-family: var(--serif);
+    font-size: 56px;
+    line-height: 1;
+    color: var(--amber);
+    margin-bottom: 4px;
+  }
+  .panel__name {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px dashed var(--line-2);
+  }
+  .panel__row {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    gap: 14px;
+    margin-bottom: 14px;
+    font-size: 12px;
+  }
+  .panel__row dt { color: var(--text-mute); font-size: 10px; letter-spacing: 0.16em; padding-top: 2px; }
+  .panel__row dd { margin: 0; color: var(--text); }
+  .panel__row dd code {
+    background: var(--ink-3);
+    border: 1px solid var(--line-2);
+    color: var(--jade);
+    padding: 1px 5px;
+    font-size: 11px;
+  }
+  .panel__hint {
+    margin-top: 24px;
+    padding-top: 18px;
+    border-top: 1px dashed var(--line-2);
+    font-size: 11px;
+    color: var(--text-mute);
+    font-style: italic;
+    font-family: var(--serif);
+  }
+
+  /* ─── section 03 — flows ────────────────────────────────────────── */
+  .flows {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+  }
+  .flow {
+    background: var(--ink-2);
+    border: 1px solid var(--line-2);
+    padding: 32px;
+  }
+  .flow__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 28px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--line-2);
+  }
+  .flow__title {
+    font-family: var(--serif);
+    font-size: 28px;
+    margin: 0;
+    color: var(--text);
+    font-weight: 400;
+  }
+  .flow__title .it { color: var(--amber); font-style: italic; }
+  .flow__meta {
+    font-size: 9.5px;
+    color: var(--text-mute);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+  }
+  .flow__steps { list-style: none; padding: 0; margin: 0; counter-reset: step; }
+  .flow__steps li {
+    position: relative;
+    padding: 14px 0 14px 56px;
+    border-bottom: 1px dashed var(--line-2);
+    counter-increment: step;
+  }
+  .flow__steps li:last-child { border-bottom: 0; }
+  .flow__steps li::before {
+    content: counter(step, decimal-leading-zero);
+    position: absolute;
+    left: 0; top: 14px;
+    font-size: 10px;
+    color: var(--amber);
+    letter-spacing: 0.2em;
+    background: var(--ink-3);
+    border: 1px solid var(--line-2);
+    padding: 4px 8px;
+    line-height: 1;
+  }
+  .flow__steps li::after {
+    content: '';
+    position: absolute;
+    left: 18px;
+    top: 36px;
+    bottom: -14px;
+    width: 1px;
+    background: var(--line-2);
+  }
+  .flow__steps li:last-child::after { display: none; }
+  .flow__steps strong {
+    display: block;
+    color: var(--text);
+    font-weight: 500;
+    font-size: 12.5px;
+    margin-bottom: 4px;
+  }
+  .flow__steps span {
+    color: var(--text-dim);
+    font-size: 11.5px;
+    line-height: 1.55;
+  }
+  .flow__steps code {
+    background: var(--ink-3);
+    border: 1px solid var(--line-2);
+    color: var(--jade);
+    padding: 1px 5px;
+    font-size: 11px;
+  }
+  .flow__steps em {
+    font-family: var(--serif);
+    font-style: italic;
+    color: var(--amber);
+    font-size: 12.5px;
+  }
+
+  /* ─── section 04 — gaps ─────────────────────────────────────────── */
+  .gap-controls {
+    display: flex;
+    gap: 32px;
+    align-items: center;
+    margin-bottom: 32px;
+    padding: 16px 0;
+    border-top: 1px solid var(--line-2);
+    border-bottom: 1px solid var(--line-2);
+    flex-wrap: wrap;
+  }
+  .gap-controls__group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .gap-controls__label {
+    font-size: 9.5px;
+    color: var(--text-mute);
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+  }
+  .chip {
+    background: transparent;
+    border: 1px solid var(--line-2);
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    padding: 6px 12px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.15s;
+  }
+  .chip:hover { color: var(--text); border-color: var(--line-3); }
+  .chip.is-on {
+    color: var(--ink);
+    background: var(--amber);
+    border-color: var(--amber);
+  }
+  .chip__count {
+    margin-left: 6px;
+    font-size: 10px;
+    opacity: 0.6;
+  }
+  .gap-stats {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--text-mute);
+    letter-spacing: 0.1em;
+  }
+  .gap-stats em { color: var(--amber); font-style: normal; }
+
+  .gap-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1px;
+    background: var(--line-2);
+    border: 1px solid var(--line-2);
+  }
+  .gap {
+    background: var(--ink-2);
+    padding: 22px 24px;
+    cursor: pointer;
+    transition: background 0.15s;
+    position: relative;
+  }
+  .gap:hover { background: var(--ink-3); }
+  .gap.is-hidden { display: none; }
+  .gap__head {
+    display: grid;
+    grid-template-columns: 56px 1fr auto;
+    gap: 12px;
+    align-items: baseline;
+  }
+  .gap__id {
+    font-family: var(--serif);
+    font-size: 32px;
+    line-height: 1;
+    color: var(--amber);
+  }
+  .gap__title {
+    font-size: 14px;
+    color: var(--text);
+    font-weight: 500;
+    margin: 0;
+    line-height: 1.3;
+  }
+  .gap__badges { display: flex; gap: 6px; }
+  .badge {
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    padding: 3px 7px;
+    border: 1px solid currentColor;
+    text-transform: uppercase;
+  }
+  .badge--high { color: var(--crit); }
+  .badge--med  { color: var(--mid); }
+  .badge--low  { color: var(--low); }
+  .badge--days   { color: var(--low); }
+  .badge--weeks  { color: var(--mid); }
+  .badge--months { color: var(--crit); }
+  .badge--arch { color: var(--jade); }
+  .badge--prod { color: var(--text-dim); }
+
+  .gap__body {
+    margin-top: 14px;
+    padding-top: 14px;
+    padding-left: 68px;
+    border-top: 1px dashed var(--line-2);
+    display: none;
+  }
+  .gap.is-open .gap__body { display: block; }
+  .gap__desc {
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.6;
+    margin: 0 0 14px;
+  }
+  .gap__fix {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 13.5px;
+    color: var(--text);
+    line-height: 1.5;
+    margin: 0;
+    padding-left: 16px;
+    border-left: 2px solid var(--amber);
+  }
+  .gap__fix::before { content: '→ Fix: '; font-family: var(--mono); font-style: normal; color: var(--amber); font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; display: block; margin-bottom: 4px; }
+
+  .gap__chev {
+    position: absolute;
+    top: 22px; right: 24px;
+    font-family: var(--mono);
+    color: var(--text-mute);
+    font-size: 10px;
+    transition: transform 0.2s;
+  }
+  .gap.is-open .gap__chev { transform: rotate(90deg); color: var(--amber); }
+
+  /* ─── section 05 — competitive ──────────────────────────────────── */
+  .compare {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .compare thead th {
+    text-align: left;
+    padding: 14px 16px;
+    font-size: 9.5px;
+    color: var(--text-mute);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    font-weight: 400;
+    border-bottom: 1px solid var(--line-3);
+    background: var(--ink-2);
+  }
+  .compare tbody td {
+    padding: 18px 16px;
+    border-bottom: 1px solid var(--line-2);
+    color: var(--text-dim);
+    vertical-align: top;
+    line-height: 1.5;
+  }
+  .compare tbody tr:hover td { background: var(--ink-2); color: var(--text); }
+  .compare .product {
+    font-family: var(--serif);
+    font-size: 18px;
+    color: var(--text);
+    font-weight: 400;
+    line-height: 1.1;
+  }
+  .compare .product small {
+    display: block;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-mute);
+    margin-top: 4px;
+    letter-spacing: 0.06em;
+  }
+  .compare tbody tr.is-subject td { background: rgba(255, 184, 107, 0.04); }
+  .compare tbody tr.is-subject .product { color: var(--amber); }
+  .compare tbody tr.is-subject .product::before {
+    content: '◆';
+    margin-right: 6px;
+    color: var(--amber);
+  }
+  .compare .pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border: 1px solid var(--line-2);
+    font-size: 10px;
+    margin: 0 4px 4px 0;
+    color: var(--text-dim);
+    letter-spacing: 0.05em;
+  }
+  .compare .pill--ev { color: var(--eth); border-color: rgba(138,162,255,0.3); }
+  .compare .pill--so { color: var(--sol); border-color: rgba(183,148,255,0.3); }
+  .compare .pill--tg { color: var(--tg);  border-color: rgba(42,171,238,0.3); }
+  .compare .pill--ot { color: var(--text-mute); }
+
+  /* ─── section 06 — stack ────────────────────────────────────────── */
+  .stack-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--line-2);
+    border: 1px solid var(--line-2);
+  }
+  .stack-card {
+    background: var(--ink-2);
+    padding: 24px 26px;
+    position: relative;
+  }
+  .stack-card__cat {
+    font-size: 9.5px;
+    letter-spacing: 0.26em;
+    color: var(--text-mute);
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+  .stack-card__finding {
+    font-family: var(--serif);
+    font-size: 22px;
+    line-height: 1.2;
+    color: var(--text);
+    margin: 0 0 14px;
+  }
+  .stack-card__finding .it { color: var(--amber); font-style: italic; }
+  .stack-card__finding .neg {
+    color: var(--text-mute);
+    font-style: italic;
+    text-decoration: line-through;
+    text-decoration-color: var(--crit);
+    text-decoration-thickness: 1px;
+  }
+  .stack-card__evidence {
+    font-size: 11px;
+    color: var(--text-mute);
+    line-height: 1.55;
+    padding-top: 14px;
+    border-top: 1px dashed var(--line-2);
+  }
+  .stack-card__evidence code {
+    background: var(--ink-3);
+    color: var(--jade);
+    padding: 1px 4px;
+    font-size: 10.5px;
+  }
+  .stack-card--neg .stack-card__cat { color: var(--crit); }
+
+  /* ─── section 07 — v0 ───────────────────────────────────────────── */
+  .v0 {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 48px;
+  }
+  .v0__lede {
+    font-family: var(--serif);
+    font-size: 24px;
+    line-height: 1.4;
+    color: var(--text);
+    margin: 0 0 32px;
+  }
+  .v0__lede em { color: var(--amber); font-style: italic; }
+  .v0__list {
+    counter-reset: v0step;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .v0__list li {
+    padding: 16px 0 16px 56px;
+    border-bottom: 1px dashed var(--line-2);
+    position: relative;
+    counter-increment: v0step;
+  }
+  .v0__list li::before {
+    content: 'WK ' counter(v0step);
+    position: absolute;
+    left: 0; top: 16px;
+    font-size: 9px;
+    color: var(--amber);
+    letter-spacing: 0.2em;
+  }
+  .v0__list strong { color: var(--text); display: block; font-weight: 500; margin-bottom: 4px; font-size: 13px; }
+  .v0__list span { color: var(--text-dim); font-size: 11.5px; }
+  .v0__skip {
+    background: var(--ink-2);
+    border: 1px dashed var(--crit);
+    padding: 24px;
+    margin-top: 8px;
+  }
+  .v0__skip h5 {
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    color: var(--crit);
+    text-transform: uppercase;
+    margin: 0 0 16px;
+  }
+  .v0__skip ul { list-style: none; padding: 0; margin: 0; font-size: 12px; color: var(--text-dim); }
+  .v0__skip li {
+    padding: 6px 0;
+    border-bottom: 1px dashed var(--line-2);
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .v0__skip li:last-child { border-bottom: 0; }
+  .v0__skip li::before { content: '×'; color: var(--crit); margin-right: 10px; font-weight: 700; }
+  .v0__skip li span { color: var(--text-mute); font-size: 10px; letter-spacing: 0.1em; }
+
+  /* ─── footer ────────────────────────────────────────────────────── */
+  footer.foot {
+    padding: 56px var(--gutter);
+    border-top: 1px solid var(--line-2);
+    text-align: center;
+    color: var(--text-mute);
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  footer.foot div { margin-bottom: 8px; }
+  footer.foot em { color: var(--amber); font-style: normal; }
+
+  /* ─── responsive ────────────────────────────────────────────────── */
+  @media (max-width: 1024px) {
+    .schematic-wrap, .subject, .v0, .flows { grid-template-columns: 1fr; }
+    .panel { position: static; }
+    .gap-grid, .stack-grid { grid-template-columns: 1fr; }
+    .cover__title { grid-template-columns: 1fr; gap: 32px; }
+    .cover__meta { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 640px) {
+    .cover__h1 { font-size: 64px; }
+    .sec__head { grid-template-columns: 1fr; }
+    .cover__meta { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     COVER SHEET
+═════════════════════════════════════════════════════════════════════ -->
+<header class="cover">
+  <div class="container">
+    <div class="cover__band">
+      <span>CLAUDE.WORKSPACE / RE / TG-TOKEN-GATES / 0001</span>
+      <span class="center blink">CLASSIFIED // OBSERVATIONAL</span>
+      <span class="right">2026.05.05 · COMPILED MULTI-AGENT</span>
+    </div>
+
+    <div class="cover__title">
+      <div>
+        <div class="cover__eyebrow">FILE 01 — INTERCEPT REPORT</div>
+        <h1 class="cover__h1"><span class="it">tg</span>TokenGates<span class="small">/01</span></h1>
+      </div>
+      <p class="cover__sub">A non-custodial Telegram token-gating service, observed only from its public surface and reverse-engineered into a system schematic, twelve gaps, and a proposed reimplementation.</p>
+    </div>
+
+    <dl class="cover__meta">
+      <div><dt>Subject</dt><dd>@tg_token_gates_bot</dd></div>
+      <div><dt>Surface</dt><dd>tgtokengates.com · gitbook.io</dd></div>
+      <div><dt>Demo Group</dt><dd>t.me/tgtokengatestest</dd></div>
+      <div><dt>Recon Method</dt><dd>3 agents · 18 docs · ~290 KB bundle</dd></div>
+      <div><dt>Status</dt><dd>External · Non-invasive</dd></div>
+    </dl>
+
+    <div class="cover__ticker">
+      <div class="ticker-tape">
+        <span><em>8</em> inferred components</span><span class="sep">/</span>
+        <span><em>12</em> gaps identified</span><span class="sep">/</span>
+        <span><em>0</em> wallet SDKs in bundle <em>(self-transfer auth confirmed)</em></span><span class="sep">/</span>
+        <span><em>4</em> chains supported · SOL · ETH · BASE · BNB</span><span class="sep">/</span>
+        <span>NFT support — <em>none</em></span><span class="sep">/</span>
+        <span>TON / Stars — <em>none</em></span><span class="sep">/</span>
+        <span>Daily Purge w/ <em>3 GIFs</em></span><span class="sep">/</span>
+        <span>Hosting <em>Vercel</em> · Analytics <em>GA4 / G-VCN8LL87GD</em></span><span class="sep">/</span>
+        <span>Pricing — <em>not published anywhere</em></span><span class="sep">/</span>
+        <span><em>8</em> inferred components</span><span class="sep">/</span>
+        <span><em>12</em> gaps identified</span><span class="sep">/</span>
+        <span><em>0</em> wallet SDKs in bundle <em>(self-transfer auth confirmed)</em></span><span class="sep">/</span>
+        <span><em>4</em> chains supported · SOL · ETH · BASE · BNB</span><span class="sep">/</span>
+        <span>NFT support — <em>none</em></span><span class="sep">/</span>
+        <span>TON / Stars — <em>none</em></span><span class="sep">/</span>
+        <span>Daily Purge w/ <em>3 GIFs</em></span><span class="sep">/</span>
+        <span>Hosting <em>Vercel</em> · Analytics <em>GA4 / G-VCN8LL87GD</em></span><span class="sep">/</span>
+        <span>Pricing — <em>not published anywhere</em></span><span class="sep">/</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     ANCHOR NAV (sticky)
+═════════════════════════════════════════════════════════════════════ -->
+<nav class="nav" id="nav">
+  <div class="nav__inner">
+    <span class="nav__brand">◆ TG-GATES / RE</span>
+    <div class="nav__list" id="navList">
+      <a href="#subject"><span class="num">01</span>Subject</a>
+      <a href="#schematic"><span class="num">02</span>Schematic</a>
+      <a href="#flows"><span class="num">03</span>Flows</a>
+      <a href="#gaps"><span class="num">04</span>Gaps</a>
+      <a href="#compare"><span class="num">05</span>Competitive</a>
+      <a href="#stack"><span class="num">06</span>Stack</a>
+      <a href="#v0"><span class="num">07</span>V0 Plan</a>
+    </div>
+    <span class="nav__live">SIGNAL · LIVE</span>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     01 — SUBJECT
+═════════════════════════════════════════════════════════════════════ -->
+<section class="sec" id="subject">
+  <div class="container">
+    <div class="sec__head">
+      <div class="sec__num">01<small>SUBJECT</small></div>
+      <div>
+        <h2 class="sec__h2">What it <span class="it">actually is</span>.</h2>
+        <p class="sec__lede">Three independent agents converged on the same picture. A small, opinionated, non-custodial Telegram-native gating bot — opinionated in ways that are sometimes elegant, sometimes risky.</p>
+      </div>
+    </div>
+
+    <div class="subject">
+      <p class="subject__lede">
+        TG Token Gates is a <em>non-custodial</em> Telegram bot that gates <strong>private groups, channels, and channel+discussion pairs</strong> by on-chain holdings across <strong>Solana · Ethereum · Base · BNB</strong>. Owners pay a one-time SOL fee, configure up to <strong>5 token gates + 1 net-worth gate</strong> per chat, and a daily <strong>"Purge"</strong> evicts anyone who no longer qualifies. Wallet ownership is proven by <em>self-transfer of a small native amount</em> — no WalletConnect, no SIWE, no signed nonce.
+      </p>
+
+      <div class="factbox">
+        <h4>Verified Surface</h4>
+        <dl>
+          <dt>Bot</dt><dd><code>@tg_token_gates_bot</code></dd>
+          <dt>Demo</dt><dd><code>t.me/tgtokengatestest</code></dd>
+          <dt>Site</dt><dd><code>tgtokengates.com</code> · Vite + React on Vercel</dd>
+          <dt>Docs</dt><dd>18 GitBook pages · <code>/docs</code> · <code>/gate-types</code> · <code>/the-purge</code></dd>
+          <dt>Auth model</dt><dd>self-transfer of dust to derived address</dd>
+          <dt>Re-verify</dt><dd>daily batch, owner-toggleable</dd>
+          <dt>Custodial</dt><dd>no (native receive only)</dd>
+          <dt>Dashboard</dt><dd>none (in-Telegram FSM)</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     02 — SCHEMATIC
+═════════════════════════════════════════════════════════════════════ -->
+<section class="sec" id="schematic">
+  <div class="container">
+    <div class="sec__head">
+      <div class="sec__num">02<small>SCHEMATIC</small></div>
+      <div>
+        <h2 class="sec__h2">System <span class="it">schematic</span>.</h2>
+        <p class="sec__lede">Eight inferred components plus three external dependencies. Hover or click any node to highlight the data paths it participates in.</p>
+      </div>
+    </div>
+
+    <div class="schematic-wrap">
+      <div>
+        <div class="schematic" id="schematic">
+          <div class="schematic__corners"></div>
+
+          <!-- SVG arrows layer -->
+          <svg viewBox="0 0 1000 800" preserveAspectRatio="none">
+            <defs>
+              <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" class="flow-arrow"/>
+              </marker>
+            </defs>
+
+            <!-- TG Users → Bot Worker -->
+            <path class="flow-path" data-edge="users-bot"   d="M 130 90 C 200 90, 220 180, 280 180" marker-end="url(#arrow)"/>
+            <!-- Bot Worker ↔ Admin Manager -->
+            <path class="flow-path" data-edge="bot-admin"   d="M 480 200 L 540 200" marker-end="url(#arrow)"/>
+            <path class="flow-path" data-edge="admin-bot"   d="M 540 220 L 480 220" marker-end="url(#arrow)"/>
+            <!-- Bot Worker → Settings -->
+            <path class="flow-path" data-edge="bot-set"     d="M 380 240 C 380 320, 800 320, 800 240" marker-end="url(#arrow)"/>
+            <!-- Bot Worker → Wallet Link -->
+            <path class="flow-path" data-edge="bot-wlink"   d="M 380 240 C 380 320, 180 380, 180 410" marker-end="url(#arrow)"/>
+            <!-- Wallet Link → Chain RPCs (verify tx) -->
+            <path class="flow-path" data-edge="wlink-rpc"   d="M 180 510 C 180 600, 130 660, 130 700" marker-end="url(#arrow)"/>
+            <!-- Holdings → RPC -->
+            <path class="flow-path" data-edge="hold-rpc"    d="M 410 510 C 410 600, 230 680, 200 700" marker-end="url(#arrow)"/>
+            <!-- Holdings ↔ Multichain Metrics -->
+            <path class="flow-path" data-edge="hold-mcm"    d="M 510 470 C 600 470, 620 610, 600 700" marker-end="url(#arrow)"/>
+            <!-- Net-Worth ← Holdings -->
+            <path class="flow-path" data-edge="nw-hold"     d="M 540 440 L 480 440" marker-end="url(#arrow)"/>
+            <!-- Net-Worth → Price Oracle -->
+            <path class="flow-path" data-edge="nw-px"       d="M 660 510 C 660 580, 800 660, 850 700" marker-end="url(#arrow)"/>
+            <!-- Purge → Holdings -->
+            <path class="flow-path" data-edge="purge-hold"  d="M 280 440 L 220 440" marker-end="url(#arrow)"/>
+            <!-- Purge → Admin -->
+            <path class="flow-path" data-edge="purge-adm"   d="M 180 410 C 180 320, 580 320, 620 240" marker-end="url(#arrow)"/>
+            <!-- Payment → RPC -->
+            <path class="flow-path" data-edge="pay-rpc"     d="M 880 510 C 880 580, 460 670, 360 700" marker-end="url(#arrow)"/>
+            <!-- Settings ↔ all -->
+            <path class="flow-path" data-edge="set-net"     d="M 800 240 C 800 340, 660 380, 660 410" marker-end="url(#arrow)"/>
+            <path class="flow-path" data-edge="set-pay"     d="M 850 240 L 880 410" marker-end="url(#arrow)"/>
+          </svg>
+
+          <!-- nodes (positions in % so they scale with svg viewBox) -->
+          <div class="node node--ext" style="left:1%;  top:7%;  width:12%;" data-node="users">
+            <div class="node__num">EXT-1</div>
+            <div class="node__name">TG Users</div>
+            <div class="node__role">end-users + chat owner</div>
+          </div>
+
+          <div class="node" style="left:28%; top:20%; width:20%;" data-node="bot">
+            <div class="node__num">C-01</div>
+            <div class="node__name">Bot Worker</div>
+            <div class="node__role">FSM / commands / callbacks</div>
+          </div>
+
+          <div class="node" style="left:54%; top:20%; width:20%;" data-node="admin">
+            <div class="node__num">C-02</div>
+            <div class="node__name">Admin Manager</div>
+            <div class="node__role">ban / unban / invite</div>
+          </div>
+
+          <div class="node" style="left:80%; top:20%; width:18%;" data-node="settings">
+            <div class="node__num">C-08</div>
+            <div class="node__name">Settings Store</div>
+            <div class="node__role">per-chat config / state</div>
+          </div>
+
+          <div class="node" style="left:8%; top:46%; width:18%;" data-node="wlink">
+            <div class="node__num">C-03</div>
+            <div class="node__name">Wallet Link Svc</div>
+            <div class="node__role">self-transfer watcher</div>
+          </div>
+
+          <div class="node" style="left:28%; top:46%; width:20%;" data-node="hold">
+            <div class="node__num">C-04</div>
+            <div class="node__name">Holdings Aggr</div>
+            <div class="node__role">balance reads + cross-chain</div>
+          </div>
+
+          <div class="node" style="left:54%; top:46%; width:20%;" data-node="nw">
+            <div class="node__num">C-05</div>
+            <div class="node__name">Net-Worth Pricer</div>
+            <div class="node__role">USD aggregation</div>
+          </div>
+
+          <div class="node" style="left:80%; top:46%; width:18%;" data-node="pay">
+            <div class="node__num">C-07</div>
+            <div class="node__name">Payment Proc</div>
+            <div class="node__role">SOL fees + payout routing</div>
+          </div>
+
+          <div class="node" style="left:8%; top:76%; width:18%;" data-node="purge">
+            <div class="node__num">C-06</div>
+            <div class="node__name">Purge Scheduler</div>
+            <div class="node__role">daily cron · 3 GIFs</div>
+          </div>
+
+          <div class="node node--ext" style="left:30%; top:78%; width:18%;" data-node="rpc">
+            <div class="node__num">EXT-2</div>
+            <div class="node__name">Chain RPCs</div>
+            <div class="node__role">SOL · ETH · BASE · BNB</div>
+          </div>
+
+          <div class="node node--ext" style="left:54%; top:78%; width:20%;" data-node="mcm">
+            <div class="node__num">EXT-3</div>
+            <div class="node__name">multichainmetrics.com</div>
+            <div class="node__role">cross-chain unification</div>
+          </div>
+
+          <div class="node node--ext" style="left:80%; top:78%; width:18%;" data-node="px">
+            <div class="node__num">EXT-4</div>
+            <div class="node__name">Price Oracle</div>
+            <div class="node__role">USD pricing (unspecified)</div>
+          </div>
+        </div>
+
+        <div class="legend">
+          <span><span class="sw"></span>inferred dataflow</span>
+          <span><span class="sw sw--solid"></span>active path (hover)</span>
+          <span><span class="sw sw--ext"></span>external dependency</span>
+          <span class="dim">tap any node to inspect</span>
+        </div>
+      </div>
+
+      <aside class="panel" id="panel">
+        <!-- populated by JS -->
+      </aside>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     03 — FLOWS
+═════════════════════════════════════════════════════════════════════ -->
+<section class="sec" id="flows">
+  <div class="container">
+    <div class="sec__head">
+      <div class="sec__num">03<small>FLOWS</small></div>
+      <div>
+        <h2 class="sec__h2">Two <span class="it">swimlanes</span>.</h2>
+        <p class="sec__lede">The owner installs the gate. The user proves a wallet and gets in. Both flows are entirely inside Telegram — there is no web application to visit, by design.</p>
+      </div>
+    </div>
+
+    <div class="flows">
+
+      <article class="flow">
+        <header class="flow__head">
+          <h3 class="flow__title">Admin <span class="it">onboarding</span></h3>
+          <span class="flow__meta">10 STEPS · DM · OWNER-ONLY</span>
+        </header>
+        <ol class="flow__steps">
+          <li><strong>Create gated chat</strong><span>Private Group, Channel, or Channel + Discussion. Telegram <em>app</em>, not web.</span></li>
+          <li><strong>Create public entry channel</strong><span>Separate channel where verification CTA lives. Must be <em>public</em>.</span></li>
+          <li><strong>Add bot as admin to all chats</strong><span>Default permissions; needs <code>can_invite_users</code> + <code>can_restrict_members</code>.</span></li>
+          <li><strong>Convert to supergroup</strong><span>Toggle history-visible or slow-mode. <em>Side-effect:</em> bot loses admin → re-add.</span></li>
+          <li><strong>DM bot <code>/setup</code></strong><span>Pick chat type → pick chat → pick entry channel.</span></li>
+          <li><strong>Pay one-time SOL fee</strong><span>Amount and recipient address are <em>not documented</em>.</span></li>
+          <li><strong>Pick gate type</strong><span><code>Token Gate</code> or <code>Net Worth Gate</code>.</span></li>
+          <li><strong>Pick chain + token</strong><span>Native, custom contract, or multichain via multichainmetrics.com.</span></li>
+          <li><strong>Set threshold + entry message</strong><span>Token amount or USD value; markdown-style entry copy.</span></li>
+          <li><strong>Confirm + activate</strong><span>Stored to <code>Settings</code>; bot begins watching.</span></li>
+        </ol>
+      </article>
+
+      <article class="flow">
+        <header class="flow__head">
+          <h3 class="flow__title">User <span class="it">verify + join</span></h3>
+          <span class="flow__meta">SELF-TRANSFER · DAILY RE-CHECK</span>
+        </header>
+        <ol class="flow__steps">
+          <li><strong>Discover entry channel</strong><span>User finds the public channel and taps verify CTA.</span></li>
+          <li><strong>Open DM with bot</strong><span>Likely a <code>t.me/&lt;bot&gt;?start=&lt;token&gt;</code> deep-link binding the user to the chat session.</span></li>
+          <li><strong>Pick chain + supply wallet address</strong><span>One row per (telegram_user, chain, address) inserted as <em>pending</em>.</span></li>
+          <li><strong>Receive tiny self-transfer amount</strong><span>Bot generates a unique dust value; user signs nothing — just sends to themselves.</span></li>
+          <li><strong>Bot watches the chain</strong><span>Tx watcher matches <code>(from == to == address, value == amount)</code> within TTL.</span></li>
+          <li><strong>Holdings evaluation</strong><span>Bot reads native + token balances across linked wallets, runs gate rules.</span></li>
+          <li><strong>Granted access</strong><span>Invite link issued; bot tracks user against <code>(chat_id, user_id)</code>.</span></li>
+          <li><strong>Daily Purge</strong><span>Every chat re-evaluates. Failures → <code>banChatMember</code> + <code>unbanChatMember</code>. GIF posted.</span></li>
+        </ol>
+      </article>
+
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     04 — GAPS
+═════════════════════════════════════════════════════════════════════ -->
+<section class="sec" id="gaps">
+  <div class="container">
+    <div class="sec__head">
+      <div class="sec__num">04<small>GAPS</small></div>
+      <div>
+        <h2 class="sec__h2">Twelve <span class="it">gaps</span>.</h2>
+        <p class="sec__lede">Eight architectural, four product/GTM. Each is fixable. Filter by severity or by effort to see which battles to pick first.</p>
+      </div>
+    </div>
+
+    <div class="gap-controls">
+      <div class="gap-controls__group">
+        <span class="gap-controls__label">Severity</span>
+        <button class="chip is-on" data-filter="sev" data-val="all">All<span class="chip__count">12</span></button>
+        <button class="chip" data-filter="sev" data-val="high">High<span class="chip__count">3</span></button>
+        <button class="chip" data-filter="sev" data-val="med">Med<span class="chip__count">6</span></button>
+        <button class="chip" data-filter="sev" data-val="low">Low<span class="chip__count">3</span></button>
+      </div>
+      <div class="gap-controls__group">
+        <span class="gap-controls__label">Effort</span>
+        <button class="chip is-on" data-filter="eff" data-val="all">All</button>
+        <button class="chip" data-filter="eff" data-val="days">Days</button>
+        <button class="chip" data-filter="eff" data-val="weeks">Weeks</button>
+        <button class="chip" data-filter="eff" data-val="months">Months</button>
+      </div>
+      <div class="gap-stats">SHOWING <em><span id="gapShown">12</span>/12</em></div>
+    </div>
+
+    <div class="gap-grid" id="gapGrid">
+      <!-- populated by JS -->
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     05 — COMPETITIVE
+═════════════════════════════════════════════════════════════════════ -->
+<section class="sec" id="compare">
+  <div class="container">
+    <div class="sec__head">
+      <div class="sec__num">05<small>COMPETITIVE</small></div>
+      <div>
+        <h2 class="sec__h2">Adjacent <span class="it">products</span>.</h2>
+        <p class="sec__lede">The category leaders use SIWE / WalletConnect / TON Connect. TG Token Gates picked a lane no one else is in: refundable self-transfer.</p>
+      </div>
+    </div>
+
+    <table class="compare">
+      <thead>
+        <tr>
+          <th style="width:18%">Product</th>
+          <th style="width:22%">Chains</th>
+          <th style="width:22%">Auth model</th>
+          <th style="width:13%">Custodial?</th>
+          <th style="width:13%">Pricing</th>
+          <th>Distinct feature</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="is-subject">
+          <td><div class="product">tg<span style="font-style:italic">Token</span>Gates<small>@tg_token_gates_bot</small></div></td>
+          <td>
+            <span class="pill pill--so">Solana</span>
+            <span class="pill pill--ev">Ethereum</span>
+            <span class="pill pill--ev">Base</span>
+            <span class="pill pill--ev">BNB</span>
+          </td>
+          <td>self-transfer of dust to derived address; <em style="color:var(--amber);font-style:normal">no signature</em></td>
+          <td>non-custodial</td>
+          <td><span class="dim">undisclosed</span></td>
+          <td>net-worth-USD gate · daily Purge w/ 3 GIFs</td>
+        </tr>
+        <tr>
+          <td><div class="product">Collab.Land<small>category leader</small></div></td>
+          <td>
+            <span class="pill pill--ev">40+ EVM</span>
+            <span class="pill pill--so">Solana</span>
+            <span class="pill pill--ot">Polkadot · Flow · NEAR · ImmutableX · …</span>
+          </td>
+          <td>WalletConnect → EIP-191 personal_sign · 5-min nonce TTL · multi-wallet</td>
+          <td>non-custodial</td>
+          <td>tiered SaaS</td>
+          <td>Telefrens — Telegram-native sub-product</td>
+        </tr>
+        <tr>
+          <td><div class="product">Guild.xyz<small>requirement-type leader</small></div></td>
+          <td>
+            <span class="pill pill--ev">EVM</span>
+            <span class="pill pill--so">Solana</span>
+            <span class="pill pill--ot">50+ requirement types</span>
+          </td>
+          <td>SIWE → on-chain reqs incl. NFT trait, POAP, activity</td>
+          <td>non-custodial</td>
+          <td>free + paid</td>
+          <td>composable rules engine + multi-platform (TG / Discord)</td>
+        </tr>
+        <tr>
+          <td><div class="product">Unlock Protocol<small>via Guild.xyz</small></div></td>
+          <td>
+            <span class="pill pill--ev">EVM mainnets</span>
+          </td>
+          <td>NFT "key" minted by Lock contract; routes through Guild</td>
+          <td>non-custodial</td>
+          <td>protocol fee on key</td>
+          <td>membership = on-chain NFT (transferable)</td>
+        </tr>
+        <tr>
+          <td><div class="product">TON-native bots<small>nessshon, jill6666</small></div></td>
+          <td>
+            <span class="pill pill--tg">TON</span>
+          </td>
+          <td>TON Connect proof; per-participant unique invite tokens</td>
+          <td>non-custodial</td>
+          <td>OSS / free</td>
+          <td>jetton + NFT gating; native to Telegram-userbase</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     06 — STACK
+═════════════════════════════════════════════════════════════════════ -->
+<section class="sec" id="stack">
+  <div class="container">
+    <div class="sec__head">
+      <div class="sec__num">06<small>STACK</small></div>
+      <div>
+        <h2 class="sec__h2">Bundle <span class="it">forensics</span>.</h2>
+        <p class="sec__lede">Findings from inspecting <code>tgtokengates.com</code> static bundle (~290 KB) and HTTP headers. <em>What's missing</em> tells us as much as what's there.</p>
+      </div>
+    </div>
+
+    <div class="stack-grid">
+
+      <div class="stack-card">
+        <div class="stack-card__cat">FRONTEND</div>
+        <p class="stack-card__finding">React + <span class="it">Vite</span> SPA</p>
+        <div class="stack-card__evidence"><code>&lt;div id="root"&gt;</code> · hashed bundle <code>/assets/index-CZvBqZHh.js</code> · Tailwind class names · Headless UI Transition strings</div>
+      </div>
+
+      <div class="stack-card">
+        <div class="stack-card__cat">HOSTING</div>
+        <p class="stack-card__finding"><span class="it">Vercel</span> · Mumbai PoP</p>
+        <div class="stack-card__evidence"><code>server: Vercel</code> · <code>x-vercel-id: bom1::…</code></div>
+      </div>
+
+      <div class="stack-card">
+        <div class="stack-card__cat">ANALYTICS</div>
+        <p class="stack-card__finding">GA4 · <span class="it">G-VCN8LL87GD</span></p>
+        <div class="stack-card__evidence">Inline gtag in <code>/index.html</code>. No PostHog · Mixpanel · Segment · Amplitude.</div>
+      </div>
+
+      <div class="stack-card">
+        <div class="stack-card__cat">FORMS</div>
+        <p class="stack-card__finding"><span class="it">Formspree</span> contact</p>
+        <div class="stack-card__evidence">POST to <code>formspree.io/f/xrbqwnkd</code></div>
+      </div>
+
+      <div class="stack-card">
+        <div class="stack-card__cat">ANTI-SPAM</div>
+        <p class="stack-card__finding">reCAPTCHA <span class="it">Enterprise</span></p>
+        <div class="stack-card__evidence"><code>recaptcha.enterprise</code> · <code>recaptcha.net</code></div>
+      </div>
+
+      <div class="stack-card">
+        <div class="stack-card__cat">SOCIAL</div>
+        <p class="stack-card__finding"><span class="it">x.com/tgtokengates</span></p>
+        <div class="stack-card__evidence">No Discord. No GitHub. No public changelog.</div>
+      </div>
+
+      <div class="stack-card stack-card--neg">
+        <div class="stack-card__cat">AUTH PROVIDER (none)</div>
+        <p class="stack-card__finding"><span class="neg">Auth0 · Clerk · Supabase</span></p>
+        <div class="stack-card__evidence">No web login surface. All admin actions inside Telegram.</div>
+      </div>
+
+      <div class="stack-card stack-card--neg">
+        <div class="stack-card__cat">PAYMENT (none)</div>
+        <p class="stack-card__finding"><span class="neg">Stripe · Stars · CB Commerce</span></p>
+        <div class="stack-card__evidence">Confirms direct on-chain native receive. No XTR / Wert / MoonPay strings.</div>
+      </div>
+
+      <div class="stack-card stack-card--neg">
+        <div class="stack-card__cat">WALLET SDK (none)</div>
+        <p class="stack-card__finding"><span class="neg">wagmi · RainbowKit · @solana · @tonconnect</span></p>
+        <div class="stack-card__evidence">Confirms self-transfer auth. Bundle has zero wallet-connect plumbing — by design.</div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     07 — V0 PLAN
+═════════════════════════════════════════════════════════════════════ -->
+<section class="sec" id="v0">
+  <div class="container">
+    <div class="sec__head">
+      <div class="sec__num">07<small>V0 PLAN</small></div>
+      <div>
+        <h2 class="sec__h2">If we <span class="it">rebuilt</span> it.</h2>
+        <p class="sec__lede">Four weeks, single dev. Ship the spine first; defer the differentiators until the foundation is real.</p>
+      </div>
+    </div>
+
+    <div class="v0">
+      <div>
+        <p class="v0__lede">A non-custodial Telegram gating bot in <em>aiogram + Postgres + Redis</em>, with a Mini App for settings, SIWE for EVM and ed25519 for Solana — the spine, then NFT and TON as feature flags.</p>
+
+        <ol class="v0__list">
+          <li><strong>Bot spine + token gates</strong><span><code>aiogram 3</code> long-poll · <code>/setup</code> wizard · ERC-20 + SPL only · single-wallet per user.</span></li>
+          <li><strong>Wallet auth + chain readers</strong><span>SIWE (EIP-4361, 5-min TTL) for EVM · sign-message for Solana · Alchemy multi-chain + Helius. Cache (Redis 60s) on <code>(chain, address, contract)</code>.</span></li>
+          <li><strong>Daily purge + admin manager</strong><span>APScheduler · token-bucket pacer (30 msg/sec) · <code>banChatMember</code> + <code>unbanChatMember</code> idempotent.</span></li>
+          <li><strong>Mini App settings + ship</strong><span>Telegram WebApp panel · <code>initData</code> HMAC auth · per-chat gates CRUD · whitelist by <code>tg_user_id</code>.</span></li>
+        </ol>
+      </div>
+
+      <div class="v0__skip">
+        <h5>Deferred from v0</h5>
+        <ul>
+          <li>NFT gating (ERC-721 / 1155 / Metaplex) <span>v1</span></li>
+          <li>TON Connect + jetton + NFT <span>v1</span></li>
+          <li>Net-worth USD gates + price oracle <span>v1</span></li>
+          <li>Payment gates (recurring SOL/ETH/BNB) <span>v2</span></li>
+          <li>Self-transfer auth path <span>v2 (alt)</span></li>
+          <li>Multi-wallet aggregation <span>v1</span></li>
+          <li>Public webhooks / API <span>v2</span></li>
+          <li>Custom GIFs per purge type <span>v1 (steal-this)</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="foot">
+  <div class="container">
+    <div>END OF FILE 0001 · TG-TOKEN-GATES · INTERCEPT REPORT</div>
+    <div>RECON BY <em>3 AGENTS DISPATCHED IN PARALLEL</em> · COMPILED 2026.05.05</div>
+    <div class="dim">FOLLOWUPS — JOIN <code style="font-family:var(--mono);background:var(--ink-2);padding:1px 6px">t.me/tgtokengatestest</code> · PROBE multichainmetrics.com · WATCH PAYOUT ADDR</div>
+  </div>
+</footer>
+
+<script>
+/* ─── component data ──────────────────────────────────────────────── */
+const NODES = {
+  users: { num:'EXT-01', name:'Telegram Users', kind:'External actor',
+    role:'End-users joining the gated chat + the chat owner configuring it.',
+    edges:['users-bot'],
+    notes:'Hits the bot via DM (owner) and via the public entry channel CTA (end-user). All auth happens through Bot API.' },
+  bot: { num:'C-01', name:'Bot Worker', kind:'Internal · core',
+    role:'FSM for /setup + /settings; routes button callbacks; long-polls Bot API.',
+    edges:['users-bot','bot-admin','admin-bot','bot-set','bot-wlink'],
+    notes:'Likely Python aiogram or Node telegraf. Handles 10-step setup wizard with per-user state — needs Redis or per-row session table.' },
+  admin: { num:'C-02', name:'Admin Manager', kind:'Internal',
+    role:'Issues invite links; calls banChatMember / unbanChatMember; tracks bot-admin status per chat.',
+    edges:['bot-admin','admin-bot','purge-adm'],
+    notes:'Needs can_invite_users + can_restrict_members. Watch for bot-loses-admin race after supergroup conversion.' },
+  settings: { num:'C-08', name:'Settings Store', kind:'Internal · datastore',
+    role:'Per-chat state: gates list, whitelist, entry message, command toggles, purge prefs, GIF refs, payout wallets.',
+    edges:['bot-set','set-net','set-pay'],
+    notes:'Postgres or Mongo. Owner-keyed by Telegram user ID. Schema includes 5+1 gates max per chat.' },
+  wlink: { num:'C-03', name:'Wallet Link Service', kind:'Internal',
+    role:'Generates a unique dust amount, watches the chain for the user’s self-transfer, marks (tg_user, chain, addr) verified.',
+    edges:['bot-wlink','wlink-rpc'],
+    notes:'Most novel component. Replay-protection via tx-amount + TTL. Dropped-tx + dust-collision handling not documented publicly.' },
+  hold: { num:'C-04', name:'Holdings Aggregator', kind:'Internal',
+    role:'Per (wallet, chain) reads native + ERC-20/SPL/BEP-20 balances; resolves the same token across chains via Multichain Metrics.',
+    edges:['hold-rpc','hold-mcm','nw-hold','purge-hold'],
+    notes:'Hot path on every Purge tick. Needs aggressive caching + multicall to keep RPC bills sane.' },
+  nw: { num:'C-05', name:'Net-Worth Pricer', kind:'Internal',
+    role:'Sums USD across all linked wallets and chains for /networth and net-worth gates.',
+    edges:['nw-hold','nw-px','set-net'],
+    notes:'Single-vendor pricing risk if Multichain Metrics is sole source. Stale-price fallback unknown.' },
+  purge: { num:'C-06', name:'Purge Scheduler', kind:'Internal',
+    role:'Daily cron per chat; re-evaluates rules engine; sends notifications + GIFs; manual run with 24h cooldown.',
+    edges:['purge-hold','purge-adm'],
+    notes:'Three GIF types: Purged · Diamond Hands · Supply Control. Existing-member blind spot lives here.' },
+  pay: { num:'C-07', name:'Payment Processor', kind:'Internal',
+    role:'Receives one-time SOL setup fees; future Payment-Gate flow routes funds to owner-supplied payout wallets (one SOL + one shared EVM).',
+    edges:['pay-rpc','set-pay'],
+    notes:'Bot does not custody funds — direct-to-owner-wallet routing. Setup-fee recipient is opaque to users.' },
+  rpc: { num:'EXT-02', name:'Chain RPCs', kind:'External · per-chain',
+    role:'Solana · Ethereum · Base · BNB. Provider not disclosed.',
+    edges:['wlink-rpc','hold-rpc','pay-rpc'],
+    notes:'Inferred Alchemy + Helius (most common). Rate-limit + cost exposure scales with chat count × member count.' },
+  mcm: { num:'EXT-03', name:'multichainmetrics.com', kind:'External · single vendor',
+    role:'Cross-chain token unification — maps the same token across deployments. Single point of dependency.',
+    edges:['hold-mcm'],
+    notes:'Third-party with undocumented SLA. If down, multichain gates and net-worth gates degrade.' },
+  px: { num:'EXT-04', name:'Price Oracle', kind:'External',
+    role:'USD pricing source for Net Worth gates. Provider not disclosed (CoinGecko? on-chain TWAP? Pyth?).',
+    edges:['nw-px'],
+    notes:'A spec gap. Implementation choice has direct impact on gate fairness during volatile windows.' },
+};
+
+const DEFAULT_NODE = 'bot';
+
+const PANEL = document.getElementById('panel');
+const SCHEM = document.getElementById('schematic');
+
+function renderPanel(key) {
+  const n = NODES[key]; if (!n) return;
+  PANEL.innerHTML = `
+    <div class="panel__num">${n.num}</div>
+    <div class="panel__name">${n.name}</div>
+    <dl class="panel__row"><dt>KIND</dt><dd>${n.kind}</dd></dl>
+    <dl class="panel__row"><dt>ROLE</dt><dd>${n.role}</dd></dl>
+    <dl class="panel__row"><dt>EDGES</dt><dd>${n.edges.length} active path${n.edges.length===1?'':'s'}</dd></dl>
+    <p class="panel__hint">${n.notes}</p>
+  `;
+  // highlight node + edges
+  SCHEM.querySelectorAll('.node').forEach(el => el.classList.toggle('is-active', el.dataset.node === key));
+  SCHEM.querySelectorAll('.flow-path').forEach(el => el.classList.toggle('is-active', n.edges.includes(el.dataset.edge)));
+}
+SCHEM.querySelectorAll('.node').forEach(el => {
+  el.addEventListener('mouseenter', () => renderPanel(el.dataset.node));
+  el.addEventListener('click', () => renderPanel(el.dataset.node));
+});
+renderPanel(DEFAULT_NODE);
+
+/* ─── gaps ────────────────────────────────────────────────────────── */
+const GAPS = [
+  { id:'G1',  title:'Pre-existing members invisible to bot',
+    sev:'high', eff:'weeks', cat:'arch',
+    desc:'Telegram only emits chat_member updates after the bot is admin. Members who joined earlier are never seen by the Purge — they are effectively grandfathered in forever. Docs admit this; no remediation shipped.',
+    fix:'Soft-purge mode: on bot-admin grant, DM each existing member a verify CTA; ban only those who fail or never respond within N days. Optionally combine with channel-message scrape audit.' },
+  { id:'G2',  title:'No NFT support (ERC-721 / 1155 / Metaplex)',
+    sev:'high', eff:'months', cat:'arch',
+    desc:'Largest single missed market in token gating. Guild.xyz and Collab.Land treat NFT + trait gates as core; TG Token Gates supports neither.',
+    fix:'Add ERC-721 ownership, ERC-1155 balance ≥ N, plus trait gates with a metadata cache + refresh-on-event. Solana via Helius DAS API.' },
+  { id:'G3',  title:'No TON / Stars support',
+    sev:'med',  eff:'months', cat:'arch',
+    desc:'TON is the most Telegram-native chain and has the largest Telegram-overlapped userbase. Bundle confirms zero TON Connect plumbing — entirely absent from the product.',
+    fix:'Parallel verify channel via TON Connect for jettons + NFTs. Optional Stars (XTR) for the payment-gate path.' },
+  { id:'G4',  title:'Self-transfer scheme is underspecified',
+    sev:'high', eff:'weeks', cat:'arch',
+    desc:'Docs do not describe amount precision, expiry, replay protection, dust collisions when two users get the same nonce, mempool-vs-finality requirements, or dropped-tx retry policy.',
+    fix:'Spec it: amount = base_dust + hash(tg_user, chat, nonce) mod 1e9; 30-min TTL; require ≥1 finality EVM, ≥1 confirmed slot SOL; idempotency on (chain, tx_hash); replay window per (chain, address). Publish.' },
+  { id:'G5',  title:'Net-worth pricing oracle unspecified',
+    sev:'high', eff:'weeks', cat:'arch',
+    desc:'Single-vendor risk via multichainmetrics.com. No documented fallback path if it goes down or returns stale prices during a volatile window.',
+    fix:'Multi-source pricer: CoinGecko primary → on-chain TWAP fallback → MCM for cross-chain unification only. Refuse to evaluate net-worth gates if all sources stale > N min; surface stale-mode in /networth.' },
+  { id:'G6',  title:'Whitelist keyed on @username, not user_id',
+    sev:'med',  eff:'days',   cat:'arch',
+    desc:'Users without a public username cannot be whitelisted. Behavior on username change is undocumented — likely the whitelist silently breaks.',
+    fix:'Switch storage to tg_user_id. Migrate existing entries by resolving each @username once; warn on entries that fail to resolve.' },
+  { id:'G7',  title:'Bot-loses-admin race on supergroup conversion',
+    sev:'med',  eff:'days',   cat:'arch',
+    desc:'Telegram strips admin status when a basic group converts to supergroup. Re-add is manual; no detect-and-prompt loop documented.',
+    fix:'Subscribe to chat_member on the bot itself; on status downgrade, DM the chat owner with one-tap re-add deep-link instructions.' },
+  { id:'G8',  title:'No rate-limit hardening for Purge',
+    sev:'med',  eff:'days',   cat:'arch',
+    desc:'Telegram Bot API rate-limits at 30 msg/sec global, 20/min per chat. A purge of a 10k-member room without throttling will trigger 429s and partial bans.',
+    fix:'Token-bucket pacer in the purge worker; honor retry_after on 429; concurrency cap per chat; idempotent ban operations so retries are safe.' },
+  { id:'G9',  title:'No Sybil / wallet-sharing controls',
+    sev:'med',  eff:'weeks',  cat:'arch',
+    desc:'Nothing prevents one whale from satisfying net-worth gates across many chats, or two users from sharing one wallet. The verification message is not bound to the originating tg_user.',
+    fix:'Bind the verify session to the originating message’s from.id; reject completion if a wallet is already linked to a different tg_user_id within the same chat.' },
+  { id:'G10', title:'Setup-fee recipient + amount + refund policy opaque',
+    sev:'low',  eff:'days',   cat:'prod',
+    desc:'The user pays SOL with no public-facing destination address, no fee schedule, and no refund policy. Trust gap — particularly for a paid product with no published pricing.',
+    fix:'Publish fee + payout address page; emit on-chain receipt link in the bot’s reply; surface a public payout-history page or ENS receipt.' },
+  { id:'G11', title:'No web dashboard — Telegram FSM only',
+    sev:'med',  eff:'weeks',  cat:'prod',
+    desc:'A 10-step linear DM wizard is fragile UX for non-trivial config: editing one gate means re-entering the menu chain. Recovery from a wrong tap is brittle.',
+    fix:'Telegram WebApp (Mini App) for /settings — gives a real form UI inside Telegram; auth via initData HMAC. ~2 weeks for usable v1.' },
+  { id:'G12', title:'No public API / webhooks',
+    sev:'low',  eff:'months', cat:'prod',
+    desc:'Owners cannot subscribe to ban events, export audit logs, or programmatically manage gates. Limits the product to single-tenant manual use.',
+    fix:'Owner-facing webhooks on member-add / purge events; signed payloads; audit log export endpoint; programmatic gate CRUD. Enables ecosystem integrations.' },
+];
+
+const GRID = document.getElementById('gapGrid');
+function renderGaps() {
+  GRID.innerHTML = GAPS.map(g => `
+    <article class="gap" data-sev="${g.sev}" data-eff="${g.eff}">
+      <div class="gap__chev">▸</div>
+      <header class="gap__head">
+        <div class="gap__id">${g.id}</div>
+        <h4 class="gap__title">${g.title}</h4>
+        <div class="gap__badges">
+          <span class="badge badge--${g.sev==='high'?'high':g.sev==='med'?'med':'low'}">${g.sev}</span>
+          <span class="badge badge--${g.eff}">${g.eff}</span>
+          <span class="badge badge--${g.cat}">${g.cat==='arch'?'arch':'product'}</span>
+        </div>
+      </header>
+      <div class="gap__body">
+        <p class="gap__desc">${g.desc}</p>
+        <p class="gap__fix">${g.fix}</p>
+      </div>
+    </article>
+  `).join('');
+  GRID.querySelectorAll('.gap').forEach(el => {
+    el.addEventListener('click', () => el.classList.toggle('is-open'));
+  });
+}
+renderGaps();
+
+/* filters */
+const filters = { sev:'all', eff:'all' };
+document.querySelectorAll('.chip[data-filter]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const f = btn.dataset.filter;
+    document.querySelectorAll(`.chip[data-filter="${f}"]`).forEach(c => c.classList.remove('is-on'));
+    btn.classList.add('is-on');
+    filters[f] = btn.dataset.val;
+    applyFilters();
+  });
+});
+function applyFilters() {
+  let n = 0;
+  GRID.querySelectorAll('.gap').forEach(el => {
+    const ok = (filters.sev==='all' || el.dataset.sev===filters.sev) &&
+               (filters.eff==='all' || el.dataset.eff===filters.eff);
+    el.classList.toggle('is-hidden', !ok);
+    if (ok) n++;
+  });
+  document.getElementById('gapShown').textContent = n;
+}
+
+/* ─── scroll-spy nav ──────────────────────────────────────────────── */
+const NAV_LINKS = document.querySelectorAll('#navList a');
+const SECTIONS = [...document.querySelectorAll('section.sec')];
+const obs = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      const id = e.target.id;
+      NAV_LINKS.forEach(a => a.classList.toggle('is-active', a.getAttribute('href') === '#' + id));
+    }
+  });
+}, { rootMargin: '-40% 0px -55% 0px' });
+SECTIONS.forEach(s => obs.observe(s));
+</script>
+
+</body>
+</html>

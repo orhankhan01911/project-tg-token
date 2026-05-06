@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# tg-token v2 — pre-push gate. Refuses red.
+#
+# Wire once: `git config core.hooksPath .githooks`
+# Skip is forbidden by the production-quality bar; if a check is wrong,
+# fix the check or the code, not the hook.
+
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+
+if [ ! -x .venv/bin/python ]; then
+  echo "pre-push: .venv missing. Run 'make install' first." >&2
+  exit 1
+fi
+
+echo "pre-push: ruff check"
+.venv/bin/ruff check app tests
+
+echo "pre-push: pyright"
+if [ -x .venv/bin/pyright ]; then
+  .venv/bin/pyright
+else
+  echo "pre-push: pyright not in venv — install dev deps." >&2
+  exit 1
+fi
+
+echo "pre-push: pytest -m unit"
+.venv/bin/pytest -q -m unit
+
+echo "pre-push: ok"
