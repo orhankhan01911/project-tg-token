@@ -30,6 +30,7 @@ dev = [
     "pyright>=1.1.385",
     "respx>=0.21",
     "mongomock-motor>=0.0.34",
+    "fakeredis[lua]>=2.26",
 ]
 
 [project.scripts]

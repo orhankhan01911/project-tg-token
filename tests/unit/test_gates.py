@@ -1,13 +1,15 @@
-"""Unit tests for the whitelist-backed gate evaluator. Backed by
-mongomock-motor so we exercise real Mongo query semantics with no daemon.
-"""
+"""Unit tests for the gate evaluator. Backed by mongomock-motor so we
+exercise real Mongo query semantics with no daemon."""
 
 from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from mongomock_motor import AsyncMongoMockClient
 
-from app.gates import Approve, Decline, evaluate
+from app.gates import Approve, Decline, NeedsVerify, evaluate
+from app.settings import settings
 
 pytestmark = pytest.mark.unit
 
@@ -41,13 +43,53 @@ async def test_whitelisted_user_is_approved(db) -> None:
     assert decision.reason == "whitelist"
 
 
-async def test_stranger_is_declined(db) -> None:
+async def test_stranger_needs_verify(db) -> None:
+    """S2 change: a stranger no longer Declines outright; they get the
+    chance to verify a wallet via SIWE in the Mini App."""
     await db.chats.insert_one({"_id": -100123, "owner_tg_id": 1})
 
     decision = await evaluate(db, chat_id=-100123, tg_user_id=42)
 
-    assert isinstance(decision, Decline)
-    assert decision.reason == "not_whitelisted"
+    assert isinstance(decision, NeedsVerify)
+    assert decision.reason == "requires_siwe_verification"
+
+
+async def test_fresh_siwe_verification_approves(db) -> None:
+    await db.chats.insert_one({"_id": -100123, "owner_tg_id": 1})
+    await db.verifications.insert_one(
+        {
+            "tg_user_id": 42,
+            "chat_id": -100123,
+            "address": "0xabc",
+            "chain": "base-sepolia",
+            "method": "siwe",
+            "nonce": "n",
+            "sig_or_txhash": "0xsig",
+            "verified_at": datetime.now(tz=UTC),
+        }
+    )
+    decision = await evaluate(db, chat_id=-100123, tg_user_id=42)
+    assert isinstance(decision, Approve)
+    assert decision.reason == "siwe_verified"
+
+
+async def test_stale_siwe_verification_does_not_approve(db) -> None:
+    await db.chats.insert_one({"_id": -100123, "owner_tg_id": 1})
+    stale = datetime.now(tz=UTC) - timedelta(seconds=settings.verification_ttl_seconds + 60)
+    await db.verifications.insert_one(
+        {
+            "tg_user_id": 42,
+            "chat_id": -100123,
+            "address": "0xabc",
+            "chain": "base-sepolia",
+            "method": "siwe",
+            "nonce": "n",
+            "sig_or_txhash": "0xsig",
+            "verified_at": stale,
+        }
+    )
+    decision = await evaluate(db, chat_id=-100123, tg_user_id=42)
+    assert isinstance(decision, NeedsVerify)
 
 
 async def test_whitelist_is_chat_scoped(db) -> None:
@@ -58,5 +100,5 @@ async def test_whitelist_is_chat_scoped(db) -> None:
 
     other_chat = await evaluate(db, chat_id=-100456, tg_user_id=42)
 
-    assert isinstance(other_chat, Decline)
-    assert other_chat.reason == "not_whitelisted"
+    assert isinstance(other_chat, NeedsVerify)
+    assert other_chat.reason == "requires_siwe_verification"

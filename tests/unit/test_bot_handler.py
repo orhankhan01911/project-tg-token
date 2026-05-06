@@ -5,7 +5,7 @@ in tests/integration/test_bot_api.py.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -14,6 +14,7 @@ from aiogram.types import Chat, ChatJoinRequest, User
 from mongomock_motor import AsyncMongoMockClient
 
 from app.bot import on_chat_join_request
+from app.settings import settings
 
 pytestmark = pytest.mark.unit
 
@@ -31,6 +32,7 @@ def _make_bot() -> Mock:
     bot = Mock()
     bot.approve_chat_join_request = AsyncMock()
     bot.decline_chat_join_request = AsyncMock()
+    bot.send_message = AsyncMock()
     return bot
 
 
@@ -38,6 +40,11 @@ def _make_bot() -> Mock:
 def db():
     client = AsyncMongoMockClient()
     return client["tg_token_test"]
+
+
+@pytest.fixture(autouse=True)
+def _webapp_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "webapp_url", "https://miniapp.example.com")
 
 
 async def test_owner_join_request_is_approved(db) -> None:
@@ -62,14 +69,70 @@ async def test_whitelisted_user_is_approved(db) -> None:
     bot.approve_chat_join_request.assert_awaited_once_with(chat_id=-1001, user_id=42)
 
 
-async def test_stranger_is_declined(db) -> None:
+async def test_stranger_gets_verify_dm_not_decline(db) -> None:
+    """S2 change: a stranger to a registered chat is no longer declined
+    outright. The bot DMs them a Mini App verify link and leaves the
+    request pending; the API approves it post-verification."""
     await db.chats.insert_one({"_id": -1001, "owner_tg_id": 1})
     event = _make_event(chat_id=-1001, user_id=99)
     bot = _make_bot()
 
     await on_chat_join_request(event, bot=bot, db=db)
 
-    bot.decline_chat_join_request.assert_awaited_once_with(chat_id=-1001, user_id=99)
+    bot.send_message.assert_awaited_once()
+    call = bot.send_message.await_args
+    assert call.kwargs["chat_id"] == 99
+    # The DM must include a WebApp button — tg-token's whole UX hinges
+    # on this not silently degrading to a text-only message.
+    assert call.kwargs["reply_markup"].inline_keyboard[0][0].web_app is not None
+    bot.approve_chat_join_request.assert_not_awaited()
+    bot.decline_chat_join_request.assert_not_awaited()
+
+
+async def test_fresh_siwe_verification_is_approved(db) -> None:
+    await db.chats.insert_one({"_id": -1001, "owner_tg_id": 1})
+    await db.verifications.insert_one(
+        {
+            "tg_user_id": 42,
+            "chat_id": -1001,
+            "address": "0xabc",
+            "chain": "base-sepolia",
+            "method": "siwe",
+            "nonce": "n",
+            "sig_or_txhash": "0xsig",
+            "verified_at": datetime.now(tz=UTC),
+        }
+    )
+    event = _make_event(chat_id=-1001, user_id=42)
+    bot = _make_bot()
+
+    await on_chat_join_request(event, bot=bot, db=db)
+
+    bot.approve_chat_join_request.assert_awaited_once_with(chat_id=-1001, user_id=42)
+    bot.send_message.assert_not_awaited()
+
+
+async def test_stale_siwe_verification_falls_through_to_verify_dm(db) -> None:
+    await db.chats.insert_one({"_id": -1001, "owner_tg_id": 1})
+    stale = datetime.now(tz=UTC) - timedelta(seconds=settings.verification_ttl_seconds + 60)
+    await db.verifications.insert_one(
+        {
+            "tg_user_id": 42,
+            "chat_id": -1001,
+            "address": "0xabc",
+            "chain": "base-sepolia",
+            "method": "siwe",
+            "nonce": "n",
+            "sig_or_txhash": "0xsig",
+            "verified_at": stale,
+        }
+    )
+    event = _make_event(chat_id=-1001, user_id=42)
+    bot = _make_bot()
+
+    await on_chat_join_request(event, bot=bot, db=db)
+
+    bot.send_message.assert_awaited_once()
     bot.approve_chat_join_request.assert_not_awaited()
 
 

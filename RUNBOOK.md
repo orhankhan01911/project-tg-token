@@ -233,4 +233,128 @@ db.whitelist.getIndexes()
 
 ---
 
-## Session 2 — TBD (SIWE + Mini App)
+## Session 2 — SIWE end-to-end (auth spine)
+
+**Goal:** a stranger to a registered chat is no longer auto-declined.
+The bot DMs them a Mini App "Verify your wallet" button. The Mini App
+issues a SIWE message, the user signs it with their wallet, the backend
+verifies the signature via the Node sidecar (handles EOA + EIP-1271 +
+EIP-6492 transparently), persists a `verifications` row, and approves
+the still-pending join request.
+
+### Architecture additions
+
+- `app/api.py` — FastAPI server (`make api` → uvicorn on 127.0.0.1:8001)
+- `app/auth/initdata.py` — Telegram WebApp `initData` HMAC verifier
+- `app/auth/siwe.py` + `app/auth/siwe_parse.py` — SIWE pipeline (parse →
+  domain/address/expiry/nonce → call sidecar)
+- `app/redis_store.py` — async Redis nonce store (SET NX EX + Lua
+  compare-and-delete for one-shot consume)
+- `webapp_verifier/` — Node sidecar (Express + viem ≥ 2.x) on
+  127.0.0.1:8090. `make verifier-install && make verifier`
+- `webapp/` — React Mini App (next sub-session)
+
+Three processes total (each runs as its own systemd unit in
+`infra/systemd/`):
+
+| Service | Port | Purpose |
+|---|---|---|
+| `tg-token-bot` | — | Long-poll worker; receives `chat_join_request` |
+| `tg-token-api` | 8001 | Mini App backend + webhook receivers (S5) |
+| `tg-token-verifier` | 8090 | viem signature verifier |
+
+### Prereqs
+
+- S0 + S1 done.
+- Node 18+ on `$PATH` for the verifier (`node --version` ≥ v18).
+- A public HTTPS URL for the Mini App. For dev use a tunnel:
+  ```
+  cloudflared tunnel --url http://localhost:5173
+  ```
+  Set `WEBAPP_URL=https://<random>.trycloudflare.com` in `.env`.
+
+### Step 1 — Start the verifier sidecar
+
+```bash
+make verifier-install      # one-time: npm install
+make verifier              # foreground, port 8090
+```
+
+Verify health:
+```bash
+curl -s http://127.0.0.1:8090/health
+```
+
+### Step 2 — Start the FastAPI server
+
+```bash
+make api                   # foreground, port 8001
+curl -s http://127.0.0.1:8001/health
+```
+
+### Step 3 — Start the bot (separate terminal)
+
+```bash
+make dev
+```
+
+Logs should include `bot_starting … allowed_updates=[…] mongo_db=tg_token`
+just like S1.
+
+### Step 4 — Live smoke
+
+The S1 burner whitelist entry will short-circuit the SIWE flow. To test
+S2's verify path, delete it first:
+
+```bash
+set -a; source .env; set +a
+.venv/bin/python <<'PY'
+import asyncio
+from app.db import make_client, get_db
+
+async def go():
+    c = make_client()
+    db = get_db(c)
+    res = await db.whitelist.delete_one({"chat_id": -5202535300, "tg_user_id": 8626694223})
+    print(f"deleted: {res.deleted_count}")
+    c.close()
+asyncio.run(go())
+PY
+```
+
+Then:
+
+1. Burner leaves the test group (or: from a fresh second account).
+2. **Burner DMs `@tg_token21_bot` `/start` first** — Telegram blocks bots
+   from initiating DMs without this.
+3. Burner clicks the invite link → *Request to join* → tap.
+4. Bot logs:
+   - `join_request_received chat_id=-5202535300 tg_user_id=…`
+   - `verify_dm_sent reason=requires_siwe_verification`
+5. Burner receives a DM with a **Verify your wallet** button.
+6. Burner taps the button → Mini App opens → wallet connect → sign SIWE
+   → success message.
+7. Backend logs:
+   - `siwe_nonce_issued tg_user_id=… chat_id=…`
+   - `siwe_verify_received …`
+   - `siwe_verify_ok approved_join=true`
+8. Burner is now in the group.
+
+### Done criteria
+
+- ✅ unit suite green (`make test` — 56+ tests)
+- ✅ integration suite green with all three services up (12+ tests)
+- ✅ live: stranger gets DM with WebApp button (does NOT auto-decline)
+- ✅ live: Mini App SIWE round-trip approves the still-pending request
+- ✅ live: replay of the same nonce/signature is rejected
+
+### Mini App URL gotcha
+
+If the chat owner sets `WEBAPP_URL` to an HTTP (non-HTTPS) URL,
+Telegram silently refuses to open the Mini App on iOS / Android. The
+bot's DM looks fine but the button does nothing. Always use HTTPS
+(cloudflared tunnel, ngrok, or a real Vercel deploy).
+
+---
+
+## Session 3 — TBD (EVM holdings aggregator)

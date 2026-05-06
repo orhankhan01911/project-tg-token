@@ -24,6 +24,15 @@ infra-down: ## Stop local infra
 dev: ## Run the bot in long-poll mode (foreground)
 	$(VENV)/bin/python -m $(APP)
 
+api: ## Run the FastAPI server (separate process from the bot)
+	$(VENV)/bin/uvicorn app.api:app --host 127.0.0.1 --port 8001 --reload
+
+verifier-install: ## Install the Node verifier sidecar deps
+	cd webapp_verifier && npm install
+
+verifier: ## Run the Node verifier sidecar (foreground)
+	cd webapp_verifier && npm start
+
 test: test-unit ## Default: run unit tests (fast)
 
 test-unit:
