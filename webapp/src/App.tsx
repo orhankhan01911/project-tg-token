@@ -8,6 +8,7 @@ import {
 } from "wagmi";
 
 import { fetchNonce, postVerify } from "./lib/api";
+import { hasReownProjectId, openAppKit } from "./lib/appkit";
 import { buildSiweMessage } from "./lib/siwe";
 import { getWebApp } from "./lib/telegram";
 import { chainSlug } from "./lib/wagmi";
@@ -61,6 +62,15 @@ export function App() {
 
   async function onConnect(): Promise<void> {
     setErrorMessage(null);
+
+    // When AppKit is configured, we delegate the whole connect UX to it.
+    // The modal handles WalletConnect + injected + chain switching, then
+    // wagmi state updates and `isConnected` flips on its own.
+    if (hasReownProjectId && openAppKit()) {
+      // Don't switch to "connecting" — the modal owns the UX from here.
+      return;
+    }
+
     setPhase("connecting");
     const connector = connectors[0];
     if (!connector) {

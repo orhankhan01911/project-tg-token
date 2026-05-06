@@ -19,10 +19,22 @@ const mocks = vi.hoisted(() => ({
   useSignMessage: vi.fn(),
 }));
 
+const appkitMocks = vi.hoisted(() => ({
+  hasReownProjectId: false,
+  openAppKit: vi.fn().mockReturnValue(false),
+}));
+
 vi.mock("wagmi", async (importOriginal) => {
   const actual = await importOriginal<typeof import("wagmi")>();
   return { ...actual, ...mocks };
 });
+
+vi.mock("../lib/appkit", () => ({
+  get hasReownProjectId() {
+    return appkitMocks.hasReownProjectId;
+  },
+  openAppKit: appkitMocks.openAppKit,
+}));
 
 function renderApp(): void {
   const qc = new QueryClient();
@@ -43,6 +55,8 @@ describe("App", () => {
     });
     mocks.useDisconnect.mockReturnValue({ disconnect: vi.fn() });
     mocks.useSignMessage.mockReturnValue({ signMessageAsync: vi.fn() });
+    appkitMocks.hasReownProjectId = false;
+    appkitMocks.openAppKit.mockReset().mockReturnValue(false);
     window.history.replaceState({}, "", "/?chat_id=-100123");
   });
 
@@ -60,6 +74,33 @@ describe("App", () => {
     window.history.replaceState({}, "", "/");
     renderApp();
     expect(screen.getByText(/missing/i)).toBeInTheDocument();
+  });
+
+  it("delegates to AppKit modal when projectId is set", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    appkitMocks.hasReownProjectId = true;
+    appkitMocks.openAppKit.mockReturnValue(true);
+    const connectAsync = vi.fn();
+    mocks.useConnect.mockReturnValue({ connectAsync, connectors: [{}] });
+
+    renderApp();
+    await userEvent.click(screen.getByRole("button", { name: /connect wallet/i }));
+
+    expect(appkitMocks.openAppKit).toHaveBeenCalledOnce();
+    expect(connectAsync).not.toHaveBeenCalled();
+  });
+
+  it("falls back to direct injected connect when AppKit not initialized", async () => {
+    const { default: userEvent } = await import("@testing-library/user-event");
+    appkitMocks.hasReownProjectId = false;
+    const connectAsync = vi.fn().mockResolvedValue(undefined);
+    mocks.useConnect.mockReturnValue({ connectAsync, connectors: [{ id: "injected" }] });
+
+    renderApp();
+    await userEvent.click(screen.getByRole("button", { name: /connect wallet/i }));
+
+    expect(connectAsync).toHaveBeenCalledOnce();
+    expect(appkitMocks.openAppKit).not.toHaveBeenCalled();
   });
 
   it("shows the address card and Sign button when connected", () => {

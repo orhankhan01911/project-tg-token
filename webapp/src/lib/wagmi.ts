@@ -20,9 +20,11 @@ import {
 import { base, baseSepolia, bsc, mainnet, polygon, sepolia } from "wagmi/chains";
 import { injected } from "wagmi/connectors";
 
+import { getAppKitWagmiConfig, hasReownProjectId } from "./appkit";
+
 const chains = [mainnet, sepolia, base, baseSepolia, bsc, polygon] as const;
 
-export const config: Config = createConfig({
+const fallbackConfig: Config = createConfig({
   chains,
   connectors: [injected({ shimDisconnect: true })],
   transports: {
@@ -34,6 +36,16 @@ export const config: Config = createConfig({
     [polygon.id]: fallback([http()]),
   },
 } satisfies CreateConfigParameters);
+
+/**
+ * Single source of truth for the wagmi `Config` we hand to <WagmiProvider>.
+ * - With Reown project ID: AppKit's WagmiAdapter owns the config (it adds
+ *   the WalletConnect connector + storage + chain switching glue).
+ * - Without: plain injected-only config above.
+ */
+export const config: Config = hasReownProjectId
+  ? (getAppKitWagmiConfig() ?? fallbackConfig)
+  : fallbackConfig;
 
 /**
  * Map a numeric chainId to the `chain` enum value the backend's

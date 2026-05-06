@@ -13,6 +13,8 @@
     "lint": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@reown/appkit": "^1.8.0",
+    "@reown/appkit-adapter-wagmi": "^1.8.0",
     "@tanstack/react-query": "^5.59.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -22,6 +24,7 @@
   "devDependencies": {
     "@testing-library/jest-dom": "^6.5.0",
     "@testing-library/react": "^16.0.0",
+    "@testing-library/user-event": "^14.5.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.0",
@@ -32,5 +35,8 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "overrides": {
+    "@reown/appkit-common": "^1.8.0"
   }
 }

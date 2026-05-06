@@ -357,6 +357,46 @@ Telegram silently refuses to open the Mini App on iOS / Android. The
 bot's DM looks fine but the button does nothing. Always use HTTPS
 (cloudflared tunnel, ngrok, or a real Vercel deploy).
 
+### Mobile wallet support (WalletConnect via Reown)
+
+Telegram's mobile webview doesn't expose any wallet to the page —
+neither MetaMask extension (impossible) nor any in-app wallet. The
+only way a user on Telegram-mobile can sign is via WalletConnect, which
+deep-links into the wallet app on their phone. We use Reown's AppKit
+(formerly WalletConnect Web3Modal) for the connect modal.
+
+**One-time setup:**
+
+1. Sign up at <https://cloud.reown.com> (free).
+2. Dashboard → *Create Project* → name `tg-token v2`, type *AppKit*,
+   set the URL to your `WEBAPP_URL` value (you can edit later).
+3. Copy the **Project ID** from the project page.
+4. Add to `webapp/.env`:
+   ```
+   VITE_REOWN_PROJECT_ID=<paste-here>
+   ```
+5. Restart `make webapp`.
+
+**Behaviour without a project ID:** the Mini App skips AppKit entirely
+and falls back to wagmi's `injected()` connector. Extension wallets
+(MetaMask in Telegram Web on desktop) still work; mobile users do not.
+Tests stay green either way — the appkit module is gated on
+`hasReownProjectId`.
+
+**Live smoke (with project ID):**
+
+1. Burner DMs `@tg_token21_bot` `/start` once on their phone.
+2. Burner clicks the invite link → *Request to join*.
+3. Bot DMs the burner with the *Verify your wallet* button.
+4. Burner taps button — Mini App opens in Telegram's mobile webview.
+5. Tap *Connect wallet* → Reown modal lists wallets installed on the
+   phone (MetaMask, Trust, Rabby Mobile, OKX, Coinbase, …).
+6. Tap a wallet → wallet opens via deep link, user approves session.
+7. Back in the Mini App → *Sign and verify* → wallet opens again,
+   user signs the SIWE message.
+8. Mini App shows *Verified ✓*; bot has approved the still-pending
+   join request.
+
 ---
 
 ## Session 3 — TBD (EVM holdings aggregator)
