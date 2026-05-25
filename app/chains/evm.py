@@ -247,3 +247,89 @@ async def find_self_transfer(
 async def confirmations_for(http: httpx.AsyncClient, chain_id: int, tx_block_number: int) -> int:
     head = await get_block_number(http, chain_id)
     return max(0, head - tx_block_number + 1)
+
+
+# ── chain-id lookup ──────────────────────────────────────────────────────────
+
+CHAIN_ID_MAP: dict[str, int] = {
+    "eth": 1,
+    "base": 8453,
+    "base-sepolia": 84532,
+    "sepolia": 11155111,
+}
+
+
+def chain_id_for(chain_str: str) -> int | None:
+    """Map a Chain enum value (string) to an EVM chain ID.
+
+    Returns None for non-EVM chains (Solana, TON, BNB not yet wired).
+    Callers should skip gates with a None chain_id — they belong to a
+    future reader implementation.
+    """
+    return CHAIN_ID_MAP.get(chain_str)
+
+
+# ── balance reads ────────────────────────────────────────────────────────────
+
+
+async def erc20_balance_of(
+    http: httpx.AsyncClient,
+    *,
+    chain_id: int,
+    contract: str,
+    address: str,
+) -> int:
+    """Return raw ERC-20 token balance in smallest units (no decimal scaling).
+
+    Calls balanceOf(address) — selector 0x70a08231 — via eth_call.
+    Returns 0 if the call returns empty (undeployed contract, wrong chain).
+    The caller is responsible for comparing against a raw threshold that
+    was already scaled by token decimals at gate-creation time.
+    """
+    spec = get_chain(chain_id)
+    padded = address.lower().removeprefix("0x").zfill(64)
+    data = f"0x70a08231{padded}"
+    result = await _rpc(
+        http, spec.rpc_url(), "eth_call", [{"to": contract, "data": data}, "latest"]
+    )
+    if not result or result == "0x":
+        return 0
+    return int(result, 16)
+
+
+async def eth_balance_of(
+    http: httpx.AsyncClient,
+    *,
+    chain_id: int,
+    address: str,
+) -> int:
+    """Return native ETH balance in wei via eth_getBalance."""
+    spec = get_chain(chain_id)
+    result = await _rpc(http, spec.rpc_url(), "eth_getBalance", [address, "latest"])
+    return int(result, 16)
+
+
+async def erc20_decimals(
+    http: httpx.AsyncClient,
+    *,
+    chain_id: int,
+    contract: str,
+) -> int:
+    """Return token decimal places via decimals() — selector 0x313ce567.
+
+    Falls back to 18 if the call fails or returns empty (safe default for
+    most ERC-20 tokens). Used during /setup to convert human amount to raw.
+    """
+    spec = get_chain(chain_id)
+    try:
+        result = await _rpc(
+            http,
+            spec.rpc_url(),
+            "eth_call",
+            [{"to": contract, "data": "0x313ce567"}, "latest"],
+        )
+        if not result or result == "0x":
+            return 18
+        return int(result, 16)
+    except RpcError:
+        return 18
