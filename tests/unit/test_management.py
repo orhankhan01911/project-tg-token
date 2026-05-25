@@ -9,7 +9,7 @@ import httpx
 import pytest
 from mongomock_motor import AsyncMongoMockClient
 
-from app.gates import Approve, Decline, NeedsVerify
+from app.gates import Approve, Decline
 
 pytestmark = pytest.mark.unit
 
