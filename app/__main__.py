@@ -18,11 +18,13 @@ import sentry_sdk
 from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from app.bot import build_dispatcher
 from app.db import ensure_indexes, get_db, make_client
 from app.dust_watcher import watcher_loop
 from app.logging_conf import configure_logging, get_logger
+from app.purge import run_purge_all_chats
 from app.settings import settings
 from app.setup_wizard import router as setup_router
 
@@ -59,11 +61,25 @@ async def _run() -> int:
     db = get_db(mongo_client)
     await ensure_indexes(db)
 
+    http = httpx.AsyncClient()
+
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(
+        run_purge_all_chats,
+        trigger="cron",
+        hour=getattr(settings, "purge_hour_utc", 0),
+        kwargs={"bot": None, "db": db, "http": http},  # bot injected after creation
+        id="daily_purge",
+        replace_existing=True,
+    )
+
     bot = Bot(
         token=settings.bot_token,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
-    http = httpx.AsyncClient()
+    scheduler.reschedule_job("daily_purge", kwargs={"bot": bot, "db": db, "http": http})
+    scheduler.start()
+
     dp = build_dispatcher()
     dp.include_router(setup_router)
     dp["db"] = db  # injected into every handler that declares `db` as a kwarg
@@ -87,6 +103,7 @@ async def _run() -> int:
             close_bot_session=True,
         )
     finally:
+        scheduler.shutdown(wait=False)
         watcher_task.cancel()
         try:
             await watcher_task
