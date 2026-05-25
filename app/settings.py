@@ -53,6 +53,14 @@ class Settings(BaseSettings):
     # for this many seconds; after that, they must re-verify on next join.
     verification_ttl_seconds: int = 86_400
 
+    # --- Purge ---
+    # UTC hour (0-23) when the daily purge job fires.
+    purge_hour_utc: int = Field(default=0, validation_alias="PURGE_HOUR_UTC")
+
+    # If True, log who would be banned but don't actually call ban_chat_member.
+    # Useful for auditing before enabling on a live group.
+    purge_dry_run: bool = Field(default=False, validation_alias="PURGE_DRY_RUN")
+
     @property
     def owner_ids(self) -> set[int]:
         out: set[int] = set()

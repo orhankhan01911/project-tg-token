@@ -1,12 +1,22 @@
-"""Async Redis client + nonce-store helpers.
+"""Redis nonce store — currently unused (dormant since SIWE pivot).
 
-We name this module `redis_store` (not `redis`) to avoid shadowing the
-pip package import path.
+Originally built for storing SIWE/WalletConnect nonces. The project
+now uses dust self-transfer for wallet verification, which requires no
+Redis. This module is kept for future use (e.g. rate-limiting, session
+caching) but is not wired into __main__.py.
 
-The nonce primitive is `SET ... NX EX <ttl>`: atomic insert-if-absent with
-expiry, the canonical idempotency / one-shot-token pattern. `consume`
-deletes the key on first successful read so a nonce can only be used
-exactly once — replay protection without an audit log.
+To activate: import and call `make_redis(settings.redis_url)` in
+app/__main__.py after bot startup.
+
+Historical implementation:
+  Async Redis client + nonce-store helpers. We name this module
+  `redis_store` (not `redis`) to avoid shadowing the pip package
+  import path.
+
+  The nonce primitive is `SET ... NX EX <ttl>`: atomic insert-if-absent
+  with expiry, the canonical idempotency / one-shot-token pattern.
+  `consume_nonce` deletes the key on first successful read so a nonce
+  can only be used exactly once — replay protection without an audit log.
 """
 
 from __future__ import annotations
