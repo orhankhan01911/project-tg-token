@@ -65,4 +65,18 @@ async def ensure_indexes(db: AsyncIOMotorDatabase[Any]) -> None:
         unique=True,
         name="verifications_chain_address_unique",
     )
+
+    # Dust verification: pending requests are auto-cleaned via TTL on
+    # `expires_at` (Mongo runs the reaper every 60s; effective expiry is
+    # the field value, the cleanup is the lag). The status index speeds
+    # up the watcher's "find me all pending" scan.
+    await cast(Any, db.dust_requests).create_index(
+        [("expires_at", ASCENDING)],
+        expireAfterSeconds=0,
+        name="dust_requests_ttl",
+    )
+    await cast(Any, db.dust_requests).create_index(
+        [("status", ASCENDING), ("chain_id", ASCENDING)],
+        name="dust_requests_by_status_chain",
+    )
     log.info("indexes_ensured", db=db.name)

@@ -61,9 +61,7 @@ async def evaluate(
     if chat.get("owner_tg_id") == tg_user_id:
         return Approve(reason="chat_owner")
 
-    wl = await cast(Any, db.whitelist).find_one(
-        {"chat_id": chat_id, "tg_user_id": tg_user_id}
-    )
+    wl = await cast(Any, db.whitelist).find_one({"chat_id": chat_id, "tg_user_id": tg_user_id})
     if wl is not None:
         return Approve(reason="whitelist")
 

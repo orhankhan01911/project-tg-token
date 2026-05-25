@@ -48,9 +48,7 @@ async def peek_nonce(r: aioredis.Redis, scope: str, *parts: str | int) -> str | 
     return await cast("object", r.get(_nonce_key(scope, *parts)))  # type: ignore[no-any-return]
 
 
-async def consume_nonce(
-    r: aioredis.Redis, scope: str, *parts: str | int, expected: str
-) -> bool:
+async def consume_nonce(r: aioredis.Redis, scope: str, *parts: str | int, expected: str) -> bool:
     """Delete the nonce iff it equals `expected`. Returns True on success
     (nonce existed, matched, and is now consumed). The compare-and-delete
     is done with a tiny Lua script so the check + delete are atomic."""

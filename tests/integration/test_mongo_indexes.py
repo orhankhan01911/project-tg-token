@@ -23,9 +23,7 @@ MONGO_URI = os.environ.get("MONGO_URI", "mongodb://127.0.0.1:27017")
 
 @pytest.fixture
 async def db():
-    client: AsyncIOMotorClient = AsyncIOMotorClient(
-        MONGO_URI, serverSelectionTimeoutMS=2000
-    )
+    client: AsyncIOMotorClient = AsyncIOMotorClient(MONGO_URI, serverSelectionTimeoutMS=2000)
     try:
         await client.admin.command("ping")
     except ServerSelectionTimeoutError:

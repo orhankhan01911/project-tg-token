@@ -20,42 +20,38 @@ class Settings(BaseSettings):
     sentry_dsn: str = ""
     log_level: str = "INFO"
 
+    # --- Chains ---
+    # Alchemy is preferred for production (rate limits + reliability). Empty
+    # = fall back to the chain's free public RPC. Public RPCs throttle hard;
+    # fine for v0 testing on Base Sepolia, paid tier required at scale.
     alchemy_api_key: str = ""
-    alchemy_webhook_signing_key: str = ""
     helius_api_key: str = ""
-    helius_webhook_signing_key: str = ""
-    ton_api_key: str = ""
 
-    # --- Mini App + verifier (Session 2+) ---
-    # The public URL where the Vite/React Mini App is served. Used both as
-    # the WebAppInfo URL the bot sends, and as the SIWE `domain` (per
-    # EIP-4361 the domain in the message MUST match the origin the user
-    # sees, otherwise the signature can be replayed across sites).
-    webapp_url: str = ""
-    verifier_url: str = "http://127.0.0.1:8090"
+    # --- Dust verification ---
+    # Default chain users verify on. Per-chat config in S3+ overrides this.
+    # 84532 = Base Sepolia. 8453 = Base. 1 = Mainnet ETH. 11155111 = Sepolia.
+    dust_chain_id: int = 84532
 
-    # Where the FastAPI server listens. Bot worker is a separate process.
-    # Port 8001 is taken by project-hypeV2 LLM service on this host.
-    api_host: str = "127.0.0.1"
-    api_port: int = 8002
+    # Base dust amount in wei. The unique amount = base + suffix where the
+    # suffix is hash(tg_user_id, chat_id, server_nonce) % 10^7. So total
+    # amount stays under ~0.0000000110 ETH (gas-dominated cost).
+    dust_base_wei: int = 10_000_000_000  # 1e10 wei = 0.00000001 ETH
 
-    # CORS origins for the Mini App. Comma-separated in env.
-    cors_origins: str = ""
+    # Minimum confirmations before approving. 5 is conservative for Base
+    # Sepolia; mainnet ETH should be 12+. Per-chain table in evm.py is the
+    # authoritative source.
+    dust_min_confirmations: int = 5
 
-    # SIWE nonce TTL in Redis. 5 min is the value most reference SIWE
-    # implementations ship with; long enough for a wallet round-trip,
-    # short enough that a leaked nonce isn't useful.
-    siwe_nonce_ttl_seconds: int = 300
+    # How long a pending dust request lives. 1h covers slow wallets +
+    # network congestion + the user putting their phone down.
+    dust_request_ttl_seconds: int = 3_600
 
-    # Re-verification window. Once a user signs SIWE successfully, the
-    # verification row is "fresh" for this many seconds; after that the
-    # gate evaluator falls back to declining + re-prompting verification.
-    # 24h is the IMPROVED_ARCHITECTURE.md default.
+    # How often the watcher polls each pending request's address.
+    dust_poll_interval_seconds: int = 30
+
+    # Re-verification window. Once a user verifies, their binding is fresh
+    # for this many seconds; after that, they must re-verify on next join.
     verification_ttl_seconds: int = 86_400
-
-    # Tolerance for `auth_date` in initData. Telegram's docs say accept
-    # initData up to "a few hours" old; we go strict at 1h to limit replay.
-    initdata_max_age_seconds: int = 3_600
 
     @property
     def owner_ids(self) -> set[int]:
@@ -66,19 +62,6 @@ class Settings(BaseSettings):
             except ValueError:
                 continue
         return out
-
-    @property
-    def cors_origins_list(self) -> list[str]:
-        if not self.cors_origins:
-            # Default to the webapp URL itself (and localhost dev origins).
-            base: list[str] = [
-                "http://localhost:5173",
-                "http://127.0.0.1:5173",
-            ]
-            if self.webapp_url:
-                base.append(self.webapp_url)
-            return base
-        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
 
 settings = Settings()

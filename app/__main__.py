@@ -20,6 +20,7 @@ from aiogram.enums import ParseMode
 
 from app.bot import build_dispatcher
 from app.db import ensure_indexes, get_db, make_client
+from app.dust_watcher import watcher_loop
 from app.logging_conf import configure_logging, get_logger
 from app.settings import settings
 
@@ -69,6 +70,10 @@ async def _run() -> int:
         allowed_updates=ALLOWED_UPDATES,
         mongo_db=db.name,
     )
+
+    # Background dust watcher in the same event loop. Cancelled on shutdown.
+    watcher_task = asyncio.create_task(watcher_loop(db, bot))
+
     try:
         await dp.start_polling(
             bot,
@@ -77,6 +82,11 @@ async def _run() -> int:
             close_bot_session=True,
         )
     finally:
+        watcher_task.cancel()
+        try:
+            await watcher_task
+        except asyncio.CancelledError:
+            pass
         await bot.session.close()
         mongo_client.close()
     return 0

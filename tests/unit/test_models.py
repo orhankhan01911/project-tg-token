@@ -14,6 +14,8 @@ from mongomock_motor import AsyncMongoMockClient
 from app.models import (
     Chain,
     Chat,
+    DustRequest,
+    DustRequestStatus,
     Event,
     Gate,
     GateKind,
@@ -82,6 +84,24 @@ async def test_verification_round_trip(db) -> None:
 async def test_whitelist_entry_defaults_added_at_to_now() -> None:
     entry = WhitelistEntry(chat_id=-100, tg_user_id=42)
     assert entry.added_at <= datetime.now(tz=UTC)
+
+
+async def test_dust_request_round_trip(db) -> None:
+    req = DustRequest.make(
+        tg_user_id=42,
+        chat_id=-100,
+        address="0xABCD",
+        chain_id=84532,
+        amount_wei=10_000_001_234,
+        ttl_seconds=3600,
+    )
+    await db.dust_requests.insert_one(req.model_dump(by_alias=True))
+    raw = await db.dust_requests.find_one({"_id": req.id})
+    back = DustRequest.model_validate(raw)
+    assert back.amount_wei == 10_000_001_234
+    assert back.status is DustRequestStatus.PENDING
+    assert back.address == "0xabcd"
+    assert back.chain_id == 84532
 
 
 async def test_event_round_trip(db) -> None:

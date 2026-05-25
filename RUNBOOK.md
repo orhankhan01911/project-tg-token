@@ -233,169 +233,107 @@ db.whitelist.getIndexes()
 
 ---
 
-## Session 2 — SIWE end-to-end (auth spine)
+## Session 2 — Dust self-transfer verification (no Mini App)
 
-**Goal:** a stranger to a registered chat is no longer auto-declined.
-The bot DMs them a Mini App "Verify your wallet" button. The Mini App
-issues a SIWE message, the user signs it with their wallet, the backend
-verifies the signature via the Node sidecar (handles EOA + EIP-1271 +
-EIP-6492 transparently), persists a `verifications` row, and approves
-the still-pending join request.
+**Goal:** verify wallet ownership without ever asking the user to "connect"
+or sign anything in a popup. The user proves control by sending a tiny
+self-transfer of a unique amount — same trust model as `tgtokengates.com`.
+All UX in the bot DM, no browser, no wallet permissions.
 
-### Architecture additions
+### Architecture
 
-- `app/api.py` — FastAPI server (`make api` → uvicorn on 127.0.0.1:8001)
-- `app/auth/initdata.py` — Telegram WebApp `initData` HMAC verifier
-- `app/auth/siwe.py` + `app/auth/siwe_parse.py` — SIWE pipeline (parse →
-  domain/address/expiry/nonce → call sidecar)
-- `app/redis_store.py` — async Redis nonce store (SET NX EX + Lua
-  compare-and-delete for one-shot consume)
-- `webapp_verifier/` — Node sidecar (Express + viem ≥ 2.x) on
-  127.0.0.1:8090. `make verifier-install && make verifier`
-- `webapp/` — React Mini App (next sub-session)
-
-Three processes total (each runs as its own systemd unit in
-`infra/systemd/`):
-
-| Service | Port | Purpose |
+| Service | Where | Purpose |
 |---|---|---|
-| `tg-token-bot` | — | Long-poll worker; receives `chat_join_request` |
-| `tg-token-api` | 8002 | Mini App backend + webhook receivers (S5) |
-| `tg-token-verifier` | 8090 | viem signature verifier |
+| `tg-token-bot` (long-poll) | bot worker | Receives `chat_join_request`, DMs verify instructions, accepts `/verify 0x…` |
+| `dust_watcher` (asyncio task in same process as bot) | bot worker | Polls each pending request's address every 30s for a matching self-transfer; counts confirmations; writes `verifications` + approves the join |
+| Alchemy / public RPC | external | Read-only JSON-RPC for block + tx scanning |
 
-> Port 8001 is reserved by project-hypeV2's LLM service — don't touch it.
+No FastAPI, no Mini App, no Node sidecar in this build. (Earlier SIWE
+work is preserved at tag `s2-mobile-complete`; restorable with
+`git checkout s2-mobile-complete -- app/auth/siwe.py webapp/ webapp_verifier/`.)
 
 ### Prereqs
 
 - S0 + S1 done.
-- Node 18+ on `$PATH` for the verifier (`node --version` ≥ v18).
-- A public HTTPS URL for the Mini App. For dev use a tunnel:
-  ```
-  cloudflared tunnel --url http://localhost:5173
-  ```
-  Set `WEBAPP_URL=https://<random>.trycloudflare.com` in `.env`.
+- Bot running with the new code: `make dev`. Look for `dust_watcher_started interval_seconds=30`.
+- Burner wallet on the configured chain with **enough native balance to send
+  the dust amount + gas**. For Base Sepolia, free ETH from
+  https://bwarelabs.com/faucets/base-sepolia or
+  https://www.alchemy.com/faucets/base-sepolia.
 
-### Step 1 — Start the verifier sidecar
+### Step 1 — Confirm chain config
 
-```bash
-make verifier-install      # one-time: npm install
-make verifier              # foreground, port 8090
-```
+The default chain ID is `84532` (Base Sepolia). Override per-host with
+`DUST_CHAIN_ID` in `.env` if you want a different testnet/mainnet.
 
-Verify health:
-```bash
-curl -s http://127.0.0.1:8090/health
-```
+### Step 2 — Live smoke
 
-### Step 2 — Start the FastAPI server
+1. **Burner DMs the bot `/start` once** (Telegram blocks bot-initiated DMs without this).
+2. **Burner clicks the invite link** → *Request to join*.
+3. **Bot DMs the burner**:
+   ```
+   Hi! To join Tg-token verify a wallet by sending yourself a tiny test transaction.
 
-```bash
-make api                   # foreground, port 8001
-curl -s http://127.0.0.1:8001/health
-```
+   Step 1. Reply with the wallet address you want to verify:
+   /verify 0xYourWalletAddress
+   ```
+4. **Burner replies** in the bot DM:
+   ```
+   /verify 0xb6a8c4d872818773b32bb2c760aeb042e5e710bb
+   ```
+   (Lowercase or checksummed both fine; bot lowercases for storage.)
+5. **Bot replies** with the exact amount + chain:
+   ```
+   Got it. Now send EXACTLY this amount from your wallet to itself:
 
-### Step 3 — Start the bot (separate terminal)
+     Amount:    0.000000010001234567 ETH
+     From → To: 0xb6a8c4d8... (yourself)
+     Network:   Base Sepolia
 
-```bash
-make dev
-```
+   In wei (for max precision): 10001234567
 
-Logs should include `bot_starting … allowed_updates=[…] mongo_db=tg_token`
-just like S1.
-
-### Step 4 — Live smoke
-
-The S1 burner whitelist entry will short-circuit the SIWE flow. To test
-S2's verify path, delete it first:
-
-```bash
-set -a; source .env; set +a
-.venv/bin/python <<'PY'
-import asyncio
-from app.db import make_client, get_db
-
-async def go():
-    c = make_client()
-    db = get_db(c)
-    res = await db.whitelist.delete_one({"chat_id": -5202535300, "tg_user_id": 8626694223})
-    print(f"deleted: {res.deleted_count}")
-    c.close()
-asyncio.run(go())
-PY
-```
-
-Then:
-
-1. Burner leaves the test group (or: from a fresh second account).
-2. **Burner DMs `@tg_token21_bot` `/start` first** — Telegram blocks bots
-   from initiating DMs without this.
-3. Burner clicks the invite link → *Request to join* → tap.
-4. Bot logs:
-   - `join_request_received chat_id=-5202535300 tg_user_id=…`
-   - `verify_dm_sent reason=requires_siwe_verification`
-5. Burner receives a DM with a **Verify your wallet** button.
-6. Burner taps the button → Mini App opens → wallet connect → sign SIWE
-   → success message.
-7. Backend logs:
-   - `siwe_nonce_issued tg_user_id=… chat_id=…`
-   - `siwe_verify_received …`
-   - `siwe_verify_ok approved_join=true`
-8. Burner is now in the group.
+   I'll detect it automatically — usually within a minute of confirmation.
+   This expires in 60 min. Send /cancel to abort.
+   ```
+6. **Burner makes the self-transfer** in their wallet app (any wallet — MetaMask, Trust, Rabby, Coinbase, etc.). The "to" field is **the same address** as their own. Match the **wei** value exactly.
+7. **Watcher detects the tx within ~30s** of confirmation. Bot logs:
+   - `dust_detected tx=0x… block=…`
+   - (after `dust_min_confirmations` blocks): `dust_confirmations n=5`
+   - `dust_verified tx=0x… approved_join=True`
+8. **Bot DMs the burner**:
+   ```
+   ✅ Verified.
+   Wallet bound: 0xb6a8c4d8...
+   Tx: https://sepolia.basescan.org/tx/0x…
+   You've been approved into the chat.
+   ```
+9. Burner is in the group.
 
 ### Done criteria
 
-- ✅ unit suite green (`make test` — 56+ tests)
-- ✅ integration suite green with all three services up (12+ tests)
-- ✅ live: stranger gets DM with WebApp button (does NOT auto-decline)
-- ✅ live: Mini App SIWE round-trip approves the still-pending request
-- ✅ live: replay of the same nonce/signature is rejected
+- ✅ unit suite green (`make test` — 58+ tests)
+- ✅ ruff + pyright clean
+- ✅ live: `chat_join_request` → DM with `/verify` instructions (no inline buttons)
+- ✅ live: `/verify 0x…` → bot replies with exact amount in ETH + wei
+- ✅ live: self-transfer at the exact amount → watcher detects → confirms → approves
+- ✅ idempotency: replaying the watcher (kill + restart bot mid-flight) picks up where it left off
 
-### Mini App URL gotcha
+### Troubleshooting
 
-If the chat owner sets `WEBAPP_URL` to an HTTP (non-HTTPS) URL,
-Telegram silently refuses to open the Mini App on iOS / Android. The
-bot's DM looks fine but the button does nothing. Always use HTTPS
-(cloudflared tunnel, ngrok, or a real Vercel deploy).
+**"I don't see a pending join request from you on any registered chat."**
+The user ran `/verify` without first clicking the invite link. Have them tap the link and try again.
 
-### Mobile wallet support (WalletConnect via Reown)
+**Tx confirmed on-chain but bot says nothing**
+Check the watcher's poll cadence: it scans the **last 15 blocks** every 30s. Tx older than ~15 blocks at the moment the request was created might be missed. Have the user retry with a fresh `/verify` — that issues a new amount and resets the window.
 
-Telegram's mobile webview doesn't expose any wallet to the page —
-neither MetaMask extension (impossible) nor any in-app wallet. The
-only way a user on Telegram-mobile can sign is via WalletConnect, which
-deep-links into the wallet app on their phone. We use Reown's AppKit
-(formerly WalletConnect Web3Modal) for the connect modal.
+**Wrong amount**
+Wallet display rounds — the bot's Mongo comparison is at wei precision. Tell the user to copy the wei value (last line of the bot's `/verify` reply) into their wallet's "raw" input or use the ETH value with full decimals.
 
-**One-time setup:**
+**Wrong chain**
+The bot uses `DUST_CHAIN_ID` from `.env`. If the user sends on a different chain, no match. Check both sides agree.
 
-1. Sign up at <https://cloud.reown.com> (free).
-2. Dashboard → *Create Project* → name `tg-token v2`, type *AppKit*,
-   set the URL to your `WEBAPP_URL` value (you can edit later).
-3. Copy the **Project ID** from the project page.
-4. Add to `webapp/.env`:
-   ```
-   VITE_REOWN_PROJECT_ID=<paste-here>
-   ```
-5. Restart `make webapp`.
-
-**Behaviour without a project ID:** the Mini App skips AppKit entirely
-and falls back to wagmi's `injected()` connector. Extension wallets
-(MetaMask in Telegram Web on desktop) still work; mobile users do not.
-Tests stay green either way — the appkit module is gated on
-`hasReownProjectId`.
-
-**Live smoke (with project ID):**
-
-1. Burner DMs `@tg_token21_bot` `/start` once on their phone.
-2. Burner clicks the invite link → *Request to join*.
-3. Bot DMs the burner with the *Verify your wallet* button.
-4. Burner taps button — Mini App opens in Telegram's mobile webview.
-5. Tap *Connect wallet* → Reown modal lists wallets installed on the
-   phone (MetaMask, Trust, Rabby Mobile, OKX, Coinbase, …).
-6. Tap a wallet → wallet opens via deep link, user approves session.
-7. Back in the Mini App → *Sign and verify* → wallet opens again,
-   user signs the SIWE message.
-8. Mini App shows *Verified ✓*; bot has approved the still-pending
-   join request.
+**Bot crashed mid-flight**
+On restart, the `dust_watcher` re-loads all `dust_requests` with status `PENDING|DETECTED` and `expires_at > now`. State lives in Mongo, not memory.
 
 ---
 

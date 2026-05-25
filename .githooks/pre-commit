@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# tg-token v2 — pre-commit gate
+# Blocks: leaked secrets, unstaged .env files, ruff format violations
+#
+# Wire once: `git config core.hooksPath .githooks` (already set)
+
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+
+# ── 1. Refuse to commit any .env file ──────────────────────────────────────
+if git diff --cached --name-only | grep -qE '(^|\/)\.env$'; then
+  echo "pre-commit: BLOCKED — .env file staged. Remove it with: git reset HEAD <file>" >&2
+  exit 1
+fi
+
+# ── 2. Scan staged content for secret patterns ─────────────────────────────
+STAGED=$(git diff --cached --diff-filter=ACM --name-only)
+
+if [ -n "$STAGED" ]; then
+  # Patterns: raw bot tokens, API keys, private keys
+  SECRET_HITS=$(git diff --cached -- $STAGED 2>/dev/null \
+    | grep '^+' \
+    | grep -vE '^\+\+\+' \
+    | grep -iE \
+      'bot_token\s*=\s*[0-9]{8,}:|ALCHEMY_API_KEY\s*=\s*[A-Za-z0-9_-]{20,}|HELIUS_API_KEY\s*=\s*[A-Za-z0-9_-]{20,}|private_?key\s*=\s*0x[0-9a-fA-F]{64}|api_hash\s*=\s*[0-9a-f]{32}' \
+    || true)
+
+  if [ -n "$SECRET_HITS" ]; then
+    echo "pre-commit: BLOCKED — potential secrets detected in staged diff:" >&2
+    echo "$SECRET_HITS" >&2
+    echo "Remove the secret, use env vars, and retry." >&2
+    exit 1
+  fi
+fi
+
+# ── 3. Ruff format check on staged Python files ────────────────────────────
+STAGED_PY=$(git diff --cached --diff-filter=ACM --name-only | grep '\.py$' || true)
+
+if [ -n "$STAGED_PY" ] && [ -x .venv/bin/ruff ]; then
+  echo "pre-commit: ruff format --check"
+  .venv/bin/ruff format --check $STAGED_PY || {
+    echo "pre-commit: run 'make fmt' to fix formatting, then re-stage." >&2
+    exit 1
+  }
+fi
+
+echo "pre-commit: ok"

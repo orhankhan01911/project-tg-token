@@ -13,6 +13,7 @@ Conventions:
 """
 
 from app.models.chat import Chat
+from app.models.dust_request import DustRequest, DustRequestStatus
 from app.models.event import Event
 from app.models.gate import Chain, Gate, GateKind
 from app.models.verification import Verification, VerificationMethod
@@ -21,6 +22,8 @@ from app.models.whitelist import WhitelistEntry
 __all__ = [
     "Chain",
     "Chat",
+    "DustRequest",
+    "DustRequestStatus",
     "Event",
     "Gate",
     "GateKind",
