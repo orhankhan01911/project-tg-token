@@ -1,0 +1,65 @@
+version: "3.9"
+
+# Production stack — all services on a private bridge network.
+# Mongo + Redis are NOT exposed on the host (no port conflicts with btcV2).
+# Bot connects to them via Docker service names.
+
+networks:
+  tg_token_net:
+    driver: bridge
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: tg-token-mongo
+    restart: unless-stopped
+    command: ["--bind_ip_all"]
+    networks:
+      - tg_token_net
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ping:1})"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    container_name: tg-token-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    networks:
+      - tg_token_net
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  bot:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: tg-token-bot:latest
+    container_name: tg-token-bot
+    restart: unless-stopped
+    networks:
+      - tg_token_net
+    env_file:
+      - ../.env.prod
+    environment:
+      # Override local-dev defaults to point at Docker service names
+      MONGO_URI: "mongodb://mongo:27017"
+      REDIS_URL: "redis://redis:6379/0"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  mongo_data:
+  redis_data:

@@ -3,7 +3,7 @@ VENV   := .venv
 UV     := uv
 APP    := app
 
-.PHONY: help install dev infra-up infra-down test test-unit test-integration lint type fmt smoke clean
+.PHONY: help install dev infra-up infra-down test test-unit test-integration lint type fmt smoke clean deploy
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?##"};{printf "  %-20s %s\n", $$1, $$2}'
@@ -47,3 +47,6 @@ smoke: ## Print the latest smoke procedure from RUNBOOK
 
 clean:
 	rm -rf $(VENV) .pytest_cache .ruff_cache **/__pycache__
+
+deploy: ## Deploy to Hetzner — requires HETZNER_HOST=<ip>
+	HETZNER_HOST=$(HETZNER_HOST) ./deploy.sh
