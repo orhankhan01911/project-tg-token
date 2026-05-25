@@ -63,21 +63,20 @@ async def _run() -> int:
 
     http = httpx.AsyncClient()
 
+    bot = Bot(
+        token=settings.bot_token,
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+    )
+
     scheduler = AsyncIOScheduler()
     scheduler.add_job(
         run_purge_all_chats,
         trigger="cron",
         hour=getattr(settings, "purge_hour_utc", 0),
-        kwargs={"bot": None, "db": db, "http": http},  # bot injected after creation
+        kwargs={"bot": bot, "db": db, "http": http},
         id="daily_purge",
         replace_existing=True,
     )
-
-    bot = Bot(
-        token=settings.bot_token,
-        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
-    )
-    scheduler.reschedule_job("daily_purge", kwargs={"bot": bot, "db": db, "http": http})
     scheduler.start()
 
     dp = build_dispatcher()
