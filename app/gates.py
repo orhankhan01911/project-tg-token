@@ -50,8 +50,8 @@ async def _check_gates(
     *,
     chat_id: int,
     address: str,
-) -> Decision | None:
-    """Load gates for chat and check balances. Returns Approve/Decline or None if no gates."""
+) -> Decision:
+    """Load gates for chat and check balances. Returns Approve/Decline."""
     gates = await cast(Any, db.gates).find({"chat_id": chat_id}).to_list(None)
     if not gates:
         return Approve(reason="wallet_verified")

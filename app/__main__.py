@@ -24,6 +24,7 @@ from app.db import ensure_indexes, get_db, make_client
 from app.dust_watcher import watcher_loop
 from app.logging_conf import configure_logging, get_logger
 from app.settings import settings
+from app.setup_wizard import router as setup_router
 
 log = get_logger(__name__)
 
@@ -64,6 +65,7 @@ async def _run() -> int:
     )
     http = httpx.AsyncClient()
     dp = build_dispatcher()
+    dp.include_router(setup_router)
     dp["db"] = db  # injected into every handler that declares `db` as a kwarg
     dp["http"] = http  # injected into handlers that declare `http` as a kwarg
 

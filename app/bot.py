@@ -17,13 +17,14 @@ edge resets connections under load and "no silent failure" is the bar.
 from __future__ import annotations
 
 import re
-from typing import Any
+from datetime import UTC, datetime
+from typing import Any, cast
 
 import httpx
 from aiogram import Bot, Dispatcher, Router
 from aiogram.exceptions import TelegramAPIError, TelegramNetworkError
 from aiogram.filters import Command, CommandObject
-from aiogram.types import ChatJoinRequest, Message
+from aiogram.types import ChatJoinRequest, ChatMemberUpdated, Message
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from tenacity import (
     AsyncRetrying,
@@ -113,6 +114,39 @@ async def on_chat_join_request(
         # decline (the user can't take action either). Logged; they'll
         # have to /start the bot then re-tap the invite.
         bind.warning("verify_dm_failed", err=str(e))
+
+
+@router.my_chat_member()
+async def on_my_chat_member(
+    update: ChatMemberUpdated,
+    db: Any,
+) -> None:
+    """Auto-register a chat when the bot is promoted to admin.
+
+    This is the only way a chat enters the chats collection without manual
+    DB intervention. The user who promotes the bot becomes the owner.
+    """
+    new_status = update.new_chat_member.status
+    if new_status not in ("administrator", "creator"):
+        return  # bot demoted or kicked — don't touch the record
+
+    chat_id = update.chat.id
+    chat_title = update.chat.title or str(chat_id)
+    owner_tg_id = update.from_user.id  # type: ignore[union-attr]
+
+    await cast(Any, db.chats).update_one(
+        {"_id": chat_id},
+        {
+            "$setOnInsert": {
+                "_id": chat_id,
+                "title": chat_title,
+                "owner_tg_id": owner_tg_id,
+                "created_at": datetime.now(tz=UTC),
+            }
+        },
+        upsert=True,
+    )
+    log.info("chat_registered", chat_id=chat_id, owner=owner_tg_id)
 
 
 @router.message(Command("verify"))
@@ -229,8 +263,6 @@ async def _resolve_pending_chat(db: AsyncIOMotorDatabase[Any], *, tg_user_id: in
     approved in."""
     # If the user already has a non-expired pending dust request, prefer
     # that chat.
-    from datetime import UTC, datetime
-
     existing = await db.dust_requests.find_one(  # type: ignore[union-attr]
         {"tg_user_id": tg_user_id, "expires_at": {"$gt": datetime.now(tz=UTC)}}
     )
