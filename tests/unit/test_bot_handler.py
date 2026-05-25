@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, Mock
 
+import httpx
 import pytest
 from aiogram.exceptions import TelegramNetworkError
 from aiogram.filters import CommandObject
@@ -52,31 +53,38 @@ def db():
     return client["tg_token_test"]
 
 
+@pytest.fixture
+def http():
+    return AsyncMock(spec=httpx.AsyncClient)
+
+
 # --- chat_join_request handler ---
 
 
-async def test_owner_join_request_is_approved(db) -> None:
+async def test_owner_join_request_is_approved(db, http) -> None:
     await db.chats.insert_one({"_id": -1001, "owner_tg_id": 42})
     bot = _make_bot()
-    await on_chat_join_request(_make_join(chat_id=-1001, user_id=42), bot=bot, db=db)
+    await on_chat_join_request(_make_join(chat_id=-1001, user_id=42), bot=bot, db=db, http=http)
     bot.approve_chat_join_request.assert_awaited_once_with(chat_id=-1001, user_id=42)
     bot.send_message.assert_not_awaited()
 
 
-async def test_whitelisted_user_is_approved(db) -> None:
+async def test_whitelisted_user_is_approved(db, http) -> None:
     await db.chats.insert_one({"_id": -1001, "owner_tg_id": 1})
     await db.whitelist.insert_one({"chat_id": -1001, "tg_user_id": 42})
     bot = _make_bot()
-    await on_chat_join_request(_make_join(chat_id=-1001, user_id=42), bot=bot, db=db)
+    await on_chat_join_request(_make_join(chat_id=-1001, user_id=42), bot=bot, db=db, http=http)
     bot.approve_chat_join_request.assert_awaited_once_with(chat_id=-1001, user_id=42)
 
 
-async def test_stranger_gets_verify_dm_text_not_decline(db) -> None:
+async def test_stranger_gets_verify_dm_text_not_decline(db, http) -> None:
     """S2 (dust): stranger gets a TEXT DM with /verify instructions —
     no WebApp button, no Mini App link."""
     await db.chats.insert_one({"_id": -1001, "owner_tg_id": 1})
     bot = _make_bot()
-    await on_chat_join_request(_make_join(chat_id=-1001, user_id=99, title="Demo"), bot=bot, db=db)
+    await on_chat_join_request(
+        _make_join(chat_id=-1001, user_id=99, title="Demo"), bot=bot, db=db, http=http
+    )
 
     bot.send_message.assert_awaited_once()
     call = bot.send_message.await_args
@@ -89,7 +97,7 @@ async def test_stranger_gets_verify_dm_text_not_decline(db) -> None:
     bot.decline_chat_join_request.assert_not_awaited()
 
 
-async def test_fresh_dust_verification_is_approved(db) -> None:
+async def test_fresh_dust_verification_is_approved(db, http) -> None:
     await db.chats.insert_one({"_id": -1001, "owner_tg_id": 1})
     await db.verifications.insert_one(
         {
@@ -104,17 +112,17 @@ async def test_fresh_dust_verification_is_approved(db) -> None:
         }
     )
     bot = _make_bot()
-    await on_chat_join_request(_make_join(chat_id=-1001, user_id=42), bot=bot, db=db)
+    await on_chat_join_request(_make_join(chat_id=-1001, user_id=42), bot=bot, db=db, http=http)
     bot.approve_chat_join_request.assert_awaited_once_with(chat_id=-1001, user_id=42)
 
 
-async def test_unregistered_chat_is_declined(db) -> None:
+async def test_unregistered_chat_is_declined(db, http) -> None:
     bot = _make_bot()
-    await on_chat_join_request(_make_join(chat_id=-9999, user_id=42), bot=bot, db=db)
+    await on_chat_join_request(_make_join(chat_id=-9999, user_id=42), bot=bot, db=db, http=http)
     bot.decline_chat_join_request.assert_awaited_once_with(chat_id=-9999, user_id=42)
 
 
-async def test_approve_retries_on_transient_network_error(db) -> None:
+async def test_approve_retries_on_transient_network_error(db, http) -> None:
     await db.chats.insert_one({"_id": -1001, "owner_tg_id": 42})
     bot = _make_bot()
     bot.approve_chat_join_request = AsyncMock(
@@ -124,22 +132,22 @@ async def test_approve_retries_on_transient_network_error(db) -> None:
             None,
         ]
     )
-    await on_chat_join_request(_make_join(chat_id=-1001, user_id=42), bot=bot, db=db)
+    await on_chat_join_request(_make_join(chat_id=-1001, user_id=42), bot=bot, db=db, http=http)
     assert bot.approve_chat_join_request.await_count == 3
 
 
-async def test_approve_gives_up_after_max_attempts(db) -> None:
+async def test_approve_gives_up_after_max_attempts(db, http) -> None:
     await db.chats.insert_one({"_id": -1001, "owner_tg_id": 42})
     bot = _make_bot()
     bot.approve_chat_join_request = AsyncMock(
         side_effect=TelegramNetworkError(method=Mock(), message="down")
     )
     with pytest.raises(TelegramNetworkError):
-        await on_chat_join_request(_make_join(chat_id=-1001, user_id=42), bot=bot, db=db)
+        await on_chat_join_request(_make_join(chat_id=-1001, user_id=42), bot=bot, db=db, http=http)
     assert bot.approve_chat_join_request.await_count == 5
 
 
-async def test_stale_dust_verification_falls_through_to_dm(db) -> None:
+async def test_stale_dust_verification_falls_through_to_dm(db, http) -> None:
     await db.chats.insert_one({"_id": -1001, "owner_tg_id": 1})
     stale = datetime.now(tz=UTC) - timedelta(seconds=settings.verification_ttl_seconds + 60)
     await db.verifications.insert_one(
@@ -155,7 +163,7 @@ async def test_stale_dust_verification_falls_through_to_dm(db) -> None:
         }
     )
     bot = _make_bot()
-    await on_chat_join_request(_make_join(chat_id=-1001, user_id=42), bot=bot, db=db)
+    await on_chat_join_request(_make_join(chat_id=-1001, user_id=42), bot=bot, db=db, http=http)
     bot.send_message.assert_awaited_once()
     bot.approve_chat_join_request.assert_not_awaited()
 

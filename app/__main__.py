@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import sys
 
+import httpx
 import sentry_sdk
 from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
@@ -61,8 +62,10 @@ async def _run() -> int:
         token=settings.bot_token,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
+    http = httpx.AsyncClient()
     dp = build_dispatcher()
     dp["db"] = db  # injected into every handler that declares `db` as a kwarg
+    dp["http"] = http  # injected into handlers that declare `http` as a kwarg
 
     log.info(
         "bot_starting",
@@ -88,6 +91,7 @@ async def _run() -> int:
         except asyncio.CancelledError:
             pass
         await bot.session.close()
+        await http.aclose()
         mongo_client.close()
     return 0
 

@@ -19,6 +19,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+import httpx
 from aiogram import Bot, Dispatcher, Router
 from aiogram.exceptions import TelegramAPIError, TelegramNetworkError
 from aiogram.filters import Command, CommandObject
@@ -74,13 +75,14 @@ async def on_chat_join_request(
     event: ChatJoinRequest,
     bot: Bot,
     db: AsyncIOMotorDatabase[Any],
+    http: httpx.AsyncClient,
 ) -> None:
     chat_id = event.chat.id
     user_id = event.from_user.id
     bind = log.bind(chat_id=chat_id, tg_user_id=user_id, kind="chat_join_request")
     bind.info("join_request_received")
 
-    decision = await evaluate(db, chat_id=chat_id, tg_user_id=user_id)
+    decision = await evaluate(db, http, chat_id=chat_id, tg_user_id=user_id)
 
     if isinstance(decision, Approve):
         async for attempt in _telegram_retry():
