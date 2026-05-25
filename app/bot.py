@@ -278,6 +278,206 @@ async def _resolve_pending_chat(db: AsyncIOMotorDatabase[Any], *, tg_user_id: in
     return None
 
 
+# ── management helpers (pure, unit-testable) ─────────────────────────────────
+
+
+async def _cmd_settings_text(db: AsyncIOMotorDatabase[Any], *, owner_id: int) -> str:
+    """Build the /settings display string for all chats owned by owner_id."""
+    chats = await cast(Any, db.chats).find({"owner_tg_id": owner_id}).to_list(None)
+    if not chats:
+        return "No registered groups. Add me to a group as admin first."
+    lines: list[str] = []
+    for chat in chats:
+        chat_id = int(chat["_id"])
+        title = chat.get("title") or str(chat_id)
+        purge_status = "✓ enabled" if chat.get("purge_enabled") else "✗ disabled"
+        lines.append(f"📋 <b>{title}</b> ({chat_id}) — purge {purge_status}:")
+        gates = await cast(Any, db.gates).find({"chat_id": chat_id}).to_list(None)
+        if gates:
+            lines.append(f"Gates ({len(gates)}):")
+            for i, g in enumerate(gates, 1):
+                contract = g.get("contract") or "native"
+                lines.append(
+                    f"  {i}. {g.get('chain')} · "
+                    f"{contract[:10] if contract != 'native' else contract} · "
+                    f"min {g['threshold']}"
+                )
+        else:
+            lines.append("Gates: none")
+        wl = await cast(Any, db.whitelist).find({"chat_id": chat_id}).to_list(None)
+        if wl:
+            lines.append(f"Whitelist ({len(wl)}):")
+            for entry in wl:
+                lines.append(f"  • {entry['tg_user_id']}")
+        else:
+            lines.append("Whitelist: none")
+        lines.append("")
+    return "\n".join(lines).strip()
+
+
+async def _delete_gate_by_index(
+    db: AsyncIOMotorDatabase[Any], *, owner_id: int, index: int
+) -> bool:
+    """Delete the index-th gate (1-based) across all chats the owner owns.
+
+    Returns True if a gate was deleted, False if index is out of range.
+    """
+    chats = await cast(Any, db.chats).find({"owner_tg_id": owner_id}).to_list(None)
+    all_gates: list[dict] = []
+    for chat in chats:
+        gates = await cast(Any, db.gates).find({"chat_id": int(chat["_id"])}).to_list(None)
+        all_gates.extend(gates)
+    if index < 1 or index > len(all_gates):
+        return False
+    gate = all_gates[index - 1]
+    await cast(Any, db.gates).delete_one({"_id": gate["_id"]})
+    return True
+
+
+async def _whitelist_add(
+    db: AsyncIOMotorDatabase[Any], *, owner_id: int, target_user_id: int
+) -> None:
+    """Add target_user_id to the whitelist for all chats owned by owner_id."""
+    chats = await cast(Any, db.chats).find({"owner_tg_id": owner_id}).to_list(None)
+    for chat in chats:
+        chat_id = int(chat["_id"])
+        await cast(Any, db.whitelist).update_one(
+            {"chat_id": chat_id, "tg_user_id": target_user_id},
+            {
+                "$setOnInsert": {
+                    "chat_id": chat_id,
+                    "tg_user_id": target_user_id,
+                    "added_at": datetime.now(tz=UTC),
+                    "added_by_tg_id": owner_id,
+                }
+            },
+            upsert=True,
+        )
+
+
+async def _whitelist_remove(
+    db: AsyncIOMotorDatabase[Any], *, owner_id: int, target_user_id: int
+) -> None:
+    """Remove target_user_id from the whitelist for all chats owned by owner_id."""
+    chats = await cast(Any, db.chats).find({"owner_tg_id": owner_id}).to_list(None)
+    for chat in chats:
+        chat_id = int(chat["_id"])
+        await cast(Any, db.whitelist).delete_one({"chat_id": chat_id, "tg_user_id": target_user_id})
+
+
+async def _set_purge_enabled(
+    db: AsyncIOMotorDatabase[Any], *, owner_id: int, enabled: bool
+) -> None:
+    """Enable or disable daily purge for all chats owned by owner_id."""
+    await cast(Any, db.chats).update_many(
+        {"owner_tg_id": owner_id},
+        {"$set": {"purge_enabled": enabled}},
+    )
+
+
+async def _recheck_user(
+    db: AsyncIOMotorDatabase[Any],
+    http: httpx.AsyncClient,
+    *,
+    tg_user_id: int,
+) -> str:
+    """Re-run gate evaluation for the user's most recently verified chat.
+
+    Returns a human-readable result string.
+    """
+    verif = await cast(Any, db.verifications).find_one(
+        {"tg_user_id": tg_user_id},
+        sort=[("verified_at", -1)],
+    )
+    if verif is None:
+        return "No verified wallet found. Run /verify first."
+    chat_id = int(verif["chat_id"])
+    decision = await evaluate(db, http, chat_id=chat_id, tg_user_id=tg_user_id)
+    if isinstance(decision, Approve):
+        return "✅ You still meet all requirements."
+    if isinstance(decision, Decline):
+        return f"❌ You no longer meet the requirements: {decision.reason}"
+    return "⚠️ Your wallet verification has expired. Run /verify to re-verify."
+
+
+# ── management handlers ───────────────────────────────────────────────────────
+
+
+@router.message(Command("settings"))
+async def on_settings(message: Message, db: AsyncIOMotorDatabase[Any]) -> None:
+    if not message.from_user:
+        return
+    text = await _cmd_settings_text(db, owner_id=message.from_user.id)
+    await message.answer(text, parse_mode="HTML")
+
+
+@router.message(Command("delgate"))
+async def on_delgate(
+    message: Message, command: CommandObject, db: AsyncIOMotorDatabase[Any]
+) -> None:
+    if not message.from_user:
+        return
+    args = (command.args or "").strip()
+    if not args.isdigit():
+        await message.answer("Usage: <code>/delgate 1</code> (number from /settings list)")
+        return
+    ok = await _delete_gate_by_index(db, owner_id=message.from_user.id, index=int(args))
+    if ok:
+        await message.answer("✓ Gate deleted.")
+    else:
+        await message.answer("Invalid gate number. Run /settings to see the list.")
+
+
+@router.message(Command("whitelist"))
+async def on_whitelist(
+    message: Message, command: CommandObject, db: AsyncIOMotorDatabase[Any]
+) -> None:
+    if not message.from_user:
+        return
+    args = (command.args or "").strip().split()
+    if len(args) != 2 or args[0] not in ("add", "remove") or not args[1].isdigit():
+        await message.answer(
+            "Usage:\n"
+            "  <code>/whitelist add 123456789</code>\n"
+            "  <code>/whitelist remove 123456789</code>"
+        )
+        return
+    action, uid_str = args
+    target_uid = int(uid_str)
+    if action == "add":
+        await _whitelist_add(db, owner_id=message.from_user.id, target_user_id=target_uid)
+        await message.answer(f"✓ Added {target_uid} to whitelist.")
+    else:
+        await _whitelist_remove(db, owner_id=message.from_user.id, target_user_id=target_uid)
+        await message.answer(f"✓ Removed {target_uid} from whitelist.")
+
+
+@router.message(Command("purge_enable"))
+async def on_purge_enable(message: Message, db: AsyncIOMotorDatabase[Any]) -> None:
+    if not message.from_user:
+        return
+    await _set_purge_enabled(db, owner_id=message.from_user.id, enabled=True)
+    await message.answer("✓ Daily purge enabled for your groups.")
+
+
+@router.message(Command("purge_disable"))
+async def on_purge_disable(message: Message, db: AsyncIOMotorDatabase[Any]) -> None:
+    if not message.from_user:
+        return
+    await _set_purge_enabled(db, owner_id=message.from_user.id, enabled=False)
+    await message.answer("✓ Daily purge disabled for your groups.")
+
+
+@router.message(Command("recheck"))
+async def on_recheck(
+    message: Message, db: AsyncIOMotorDatabase[Any], http: httpx.AsyncClient
+) -> None:
+    if not message.from_user:
+        return
+    result = await _recheck_user(db, http, tg_user_id=message.from_user.id)
+    await message.answer(result)
+
+
 def build_dispatcher() -> Dispatcher:
     dp = Dispatcher()
     dp.include_router(router)
