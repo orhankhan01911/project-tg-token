@@ -62,6 +62,16 @@ class Settings(BaseSettings):
     # Useful for auditing before enabling on a live group.
     purge_dry_run: bool = Field(default=False, validation_alias="PURGE_DRY_RUN")
 
+    # --- Token Gates ---
+    # Minimum USD threshold for token gate requirements.
+    token_gate_min_usd: str = "10"
+
+    # DexScreener API base URL for token pricing data.
+    dexscreener_base_url: str = "https://api.dexscreener.com/latest/dex/tokens"
+
+    # TON API base URL for TON blockchain queries.
+    tonapi_base_url: str = "https://tonapi.io/v2"
+
     @property
     def owner_ids(self) -> set[int]:
         out: set[int] = set()

@@ -90,4 +90,10 @@ async def ensure_indexes(db: AsyncIOMotorDatabase[Any]) -> None:
         [("status", ASCENDING), ("chain_id", ASCENDING)],
         name="dust_requests_by_status_chain",
     )
+    # token_gates: one basket per chat
+    await cast(Any, db.token_gates).create_index(
+        [("chat_id", ASCENDING)],
+        unique=True,
+        name="token_gates_by_chat",
+    )
     log.info("indexes_ensured", db=db.name)
