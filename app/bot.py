@@ -578,13 +578,29 @@ async def on_set_token_gate(message: Message, db: AsyncIOMotorDatabase[Any]) -> 
     if not tg_user_id:
         return
 
-    # Find a chat owned by this user.
-    chat_doc = await cast(Any, db.chats).find_one({"owner_tg_id": tg_user_id})
-    if not chat_doc:
-        await message.answer("❌ No registered group found. Add the bot to your group first.")
-        return
-
-    chat_id = int(chat_doc["_id"])
+    # If called from inside a group, use that group directly.
+    # If called from a DM, find the one group owned by this user (error if ambiguous).
+    if message.chat.type in ("group", "supergroup"):
+        chat_id = message.chat.id
+        # Verify the caller is the owner of this chat.
+        chat_doc = await cast(Any, db.chats).find_one({"_id": chat_id, "owner_tg_id": tg_user_id})
+        if not chat_doc:
+            await message.answer("❌ You are not the registered owner of this group.")
+            return
+    else:
+        # DM: find all chats owned by this user.
+        cursor = cast(Any, db.chats).find({"owner_tg_id": tg_user_id})
+        chat_docs = await cursor.to_list(length=10)
+        if not chat_docs:
+            await message.answer("❌ No registered group found. Add the bot to your group first.")
+            return
+        if len(chat_docs) > 1:
+            names = "\n".join(f"• {d.get('title', d['_id'])}" for d in chat_docs)
+            await message.answer(
+                f"❌ You own multiple groups. Run /settokengate from inside the group you want to configure:\n\n{names}"
+            )
+            return
+        chat_id = int(chat_docs[0]["_id"])
 
     gate = TokenGate(
         chat_id=chat_id,
