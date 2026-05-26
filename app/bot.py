@@ -119,20 +119,46 @@ async def on_chat_join_request(
 @router.my_chat_member()
 async def on_my_chat_member(
     update: ChatMemberUpdated,
+    bot: Bot,
     db: Any,
 ) -> None:
-    """Auto-register a chat when the bot is promoted to admin.
+    """Auto-register a chat when the bot is promoted to admin by the chat creator.
 
-    This is the only way a chat enters the chats collection without manual
-    DB intervention. The user who promotes the bot becomes the owner.
+    Security: only the chat creator (owner) may register the chat for gating.
+    Any other admin who promotes the bot is silently ignored — they must not
+    be able to claim ownership of a chat they don't fully control.
     """
     new_status = update.new_chat_member.status
     if new_status not in ("administrator", "creator"):
         return  # bot demoted or kicked — don't touch the record
 
     chat_id = update.chat.id
+    promoter = update.from_user  # type: ignore[union-attr]
+
+    # Only allow the chat creator to register the chat. Any other admin who
+    # promotes the bot is NOT trusted as the gate owner.
+    try:
+        member = await bot.get_chat_member(chat_id=chat_id, user_id=promoter.id)
+    except TelegramAPIError as e:
+        log.warning(
+            "chat_register_get_member_failed",
+            chat_id=chat_id,
+            user_id=promoter.id,
+            err=str(e),
+        )
+        return
+
+    if member.status != "creator":
+        log.info(
+            "chat_register_skipped_not_creator",
+            chat_id=chat_id,
+            user_id=promoter.id,
+            status=member.status,
+        )
+        return
+
     chat_title = update.chat.title or str(chat_id)
-    owner_tg_id = update.from_user.id  # type: ignore[union-attr]
+    owner_tg_id = promoter.id
 
     await cast(Any, db.chats).update_one(
         {"_id": chat_id},
