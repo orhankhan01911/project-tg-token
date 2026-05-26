@@ -106,27 +106,39 @@ async def evaluate(
         return Approve(reason="whitelist")
 
     fresh_cutoff = datetime.now(tz=UTC) - timedelta(seconds=settings.verification_ttl_seconds)
-    verif = await cast(Any, db.verifications).find_one(
-        {
-            "tg_user_id": tg_user_id,
-            "chat_id": chat_id,
-            "verified_at": {"$gte": fresh_cutoff},
-        }
+    verifs = (
+        await cast(Any, db.verifications)
+        .find(
+            {
+                "tg_user_id": tg_user_id,
+                "chat_id": chat_id,
+                "verified_at": {"$gte": fresh_cutoff},
+            }
+        )
+        .to_list(length=10)
     )
-    if verif is None:
+
+    if not verifs:
         return NeedsVerify(reason="requires_verification")
+
+    # ── Build multi-chain addresses dict ─────────────────────────────────────
+    evm_chains = {"eth", "base", "base-sepolia"}
+    addresses: dict[str, str] = {}
+    for v in verifs:
+        chain_val = v.get("chain", "")
+        addr = v.get("address", "")
+        if not addr:
+            continue
+        if chain_val in evm_chains:
+            addresses["evm"] = addr
+        elif chain_val == "ton":
+            addresses["ton"] = addr
+        elif chain_val == "solana":
+            addresses["solana"] = addr
 
     # ── Token gate (OR logic, multi-chain) ───────────────────────────────────
     token_gate = await load_token_gate(db, chat_id=chat_id)
     if token_gate is not None:
-        # Build addresses dict from verified wallets.
-        # v0: EVM only — users must dust-verify their EVM wallet first.
-        # TON/Solana: add when separate verification rows exist for those chains.
-        addresses: dict[str, str] = {}
-        address: str | None = verif.get("address")
-        if address:
-            addresses["evm"] = address
-
         if not addresses:
             return Decline(
                 reason="no_verified_wallet",
@@ -152,4 +164,10 @@ async def evaluate(
         )
 
     # ── AND-logic gate (legacy EVM threshold gates) ───────────────────────────
-    return await _check_gates(db, http, chat_id=chat_id, address=verif["address"])
+    evm_address = next(
+        (v["address"] for v in verifs if v.get("chain") in evm_chains),
+        None,
+    )
+    if evm_address is None:
+        return Approve(reason="wallet_verified_non_evm")
+    return await _check_gates(db, http, chat_id=chat_id, address=evm_address)
