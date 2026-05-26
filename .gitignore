@@ -20,3 +20,8 @@ dist/
 .vite/
 
 .DS_Store
+
+# Local scripts / scratch files
+deploy.prod.sh
+*.env
+architecture_v3.html
