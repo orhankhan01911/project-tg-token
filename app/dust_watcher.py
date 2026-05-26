@@ -283,6 +283,30 @@ async def _process_request(
             bind.warning("dust_wallet_bound_to_other", address=req.address)
             return
 
+        # Check token gate if configured for this chat.
+        from app.balance_gate import evaluate_token_gate, load_token_gate
+
+        token_gate = await load_token_gate(db, chat_id=req.chat_id)
+        if token_gate is not None:
+            addresses = {"evm": req.address}  # dust-verified EVM address
+            passed = await evaluate_token_gate(http, gate=token_gate, addresses=addresses)
+            if not passed:
+                await cast(Any, db.dust_requests).update_one(
+                    {"_id": req.id},
+                    {"$set": {"status": DustRequestStatus.APPROVED.value, "confirmations": confs}},
+                )
+                await _send_dm(
+                    bot,
+                    tg_user_id=req.tg_user_id,
+                    text=(
+                        "✅ Wallet verified, but...\n\n"
+                        f"<code>{req.address}</code> doesn't hold $10+ of any required token.\n"
+                        "Top up your wallet and try joining again — your wallet stays linked."
+                    ),
+                )
+                bind.info("dust_verified_token_gate_failed", address=req.address)
+                return
+
         approved = await _approve_pending_join(bot, chat_id=req.chat_id, tg_user_id=req.tg_user_id)
         await cast(Any, db.dust_requests).update_one(
             {"_id": req.id},

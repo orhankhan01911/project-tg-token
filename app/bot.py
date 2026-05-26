@@ -391,6 +391,16 @@ async def _cmd_settings_text(db: AsyncIOMotorDatabase[Any], *, owner_id: int) ->
                 lines.append(f"  • {entry['tg_user_id']}")
         else:
             lines.append("Whitelist: none")
+        token_gate = await cast(Any, db.token_gates).find_one({"chat_id": chat_id})
+        if token_gate:
+            token_names = ", ".join(t.get("name", "?") for t in token_gate.get("tokens", []))
+            lines.append(
+                f"Token gate: ${token_gate.get('min_usd_value', '10')}+ of any: {token_names}"
+            )
+        else:
+            lines.append(
+                "Token gate: none (use /settokengate to set Brett/Wojak/Utya/Troll basket)"
+            )
         lines.append("")
     return "\n".join(lines).strip()
 
@@ -556,6 +566,71 @@ async def on_recheck(
         return
     result = await _recheck_user(db, http, tg_user_id=message.from_user.id)
     await message.answer(result)
+
+
+@router.message(Command("settokengate"))
+async def on_set_token_gate(message: Message, db: AsyncIOMotorDatabase[Any]) -> None:
+    """Admin-only: set the Brett/Wojak/Utya/Troll $10 USD gate for this chat."""
+    from app.models.gate import Chain
+    from app.models.token_gate import TokenGate, TokenSpec
+
+    tg_user_id = message.from_user.id if message.from_user else None
+    if not tg_user_id:
+        return
+
+    # Find a chat owned by this user.
+    chat_doc = await cast(Any, db.chats).find_one({"owner_tg_id": tg_user_id})
+    if not chat_doc:
+        await message.answer("❌ No registered group found. Add the bot to your group first.")
+        return
+
+    chat_id = int(chat_doc["_id"])
+
+    gate = TokenGate(
+        chat_id=chat_id,
+        min_usd_value="10",
+        tokens=[
+            TokenSpec(
+                name="Brett",
+                chain=Chain.BASE,
+                contract="0x532f27101965dd16442e59d40670faf5ebb142e4",
+            ),
+            TokenSpec(
+                name="Wojak",
+                chain=Chain.ETH,
+                contract="0x8de39b057cc6522230ab19c0205080a8663331ef",
+            ),
+            TokenSpec(
+                name="Utya",
+                chain=Chain.TON,
+                contract="EQBaCgUwOoc6gHCNln_oJzb0mVs79YG7wYoavh-o1ItaneLA",
+            ),
+            TokenSpec(
+                name="Troll",
+                chain=Chain.SOLANA,
+                contract="5UUH9RTDiSpq6HKS6bp4NdU9PNJpXRXuiw6ShBTBhgH2",
+            ),
+        ],
+    )
+
+    doc = gate.model_dump(by_alias=True)
+    gate_id = doc.pop("_id")  # _id is immutable after insert; handle separately
+    await cast(Any, db.token_gates).update_one(
+        {"chat_id": chat_id},
+        {"$set": doc, "$setOnInsert": {"_id": gate_id}},
+        upsert=True,
+    )
+
+    await message.answer(
+        "✅ <b>Token gate configured</b>\n\n"
+        "Users must hold <b>$10+ of any</b>:\n"
+        "• Brett (Base)\n"
+        "• Wojak (Ethereum)\n"
+        "• Utya (TON)\n"
+        "• Troll (Solana)\n\n"
+        "Wallet verification via /verify (dust transfer) still required first.",
+        parse_mode="HTML",
+    )
 
 
 def build_dispatcher() -> Dispatcher:
