@@ -34,7 +34,14 @@ from tenacity import (
     wait_exponential,
 )
 
-from app.auth.dust import cancel_dust_request, format_amount_eth, issue_dust_request
+from app.auth.address import detect_chain_type
+from app.auth.dust import (
+    cancel_dust_request,
+    format_amount_eth,
+    format_amount_sol,
+    format_amount_ton,
+    issue_dust_request,
+)
 from app.chains.evm import get_chain
 from app.gates import Approve, Decline, NeedsVerify, evaluate
 from app.logging_conf import get_logger
@@ -214,13 +221,18 @@ async def on_verify(
     user_id = message.from_user.id
 
     arg = (command.args or "").strip()
-    if not arg or not _ADDRESS_RE.match(arg):
+    chain_type = detect_chain_type(arg) if arg else None
+    if chain_type is None:
         await message.answer(
-            "Usage: <code>/verify 0xYourWalletAddress</code>\n\n"
-            "The address must be 0x-prefixed and 40 hex characters."
+            "Usage: <code>/verify &lt;address&gt;</code>\n\n"
+            "Supported formats:\n"
+            "• <b>EVM</b>: <code>0x...</code> (42 chars)\n"
+            "• <b>TON</b>: <code>EQ...</code> or <code>UQ...</code> (48 chars)\n"
+            "• <b>Solana</b>: base58 public key (32-44 chars)"
         )
         return
-    address = arg.lower()
+    # EVM addresses are stored lowercase; TON/Solana are case-sensitive.
+    address = arg.lower() if chain_type == "evm" else arg
 
     # Rate-limit: reject if the user has submitted a valid address within the
     # last 5 min. This prevents spamming /verify to trigger repeated expensive
@@ -251,36 +263,61 @@ async def on_verify(
         )
         return
 
+    chain_id = settings.dust_chain_id if chain_type == "evm" else 0
     req = await issue_dust_request(
         db,
         tg_user_id=user_id,
         chat_id=chat_id,
         address=address,
-        chain_id=settings.dust_chain_id,
+        chain_id=chain_id,
+        chain_type=chain_type,
     )
     # Clean up the pending_join record — the dust_request is now the
     # authoritative source for "is this user verifying for this chat".
     await cast(Any, db.pending_joins).delete_one({"tg_user_id": user_id, "chat_id": chat_id})
 
-    chain = get_chain(req.chain_id)
-    amount_eth = format_amount_eth(req.amount_wei)
-
-    await message.answer(
-        "✅ Got it. Now <b>send EXACTLY this amount from your wallet to itself</b>:\n\n"
-        f"  <b>Amount:</b> <code>{amount_eth} ETH</code>\n"
-        f"  <b>From → To:</b> <code>{address}</code> (yourself)\n"
-        f"  <b>Network:</b> {chain.name}\n\n"
-        f"In wei (for max precision): <code>{req.amount_wei}</code>\n\n"
-        "I'll detect it automatically — usually within a minute of confirmation. "
-        f"This expires in {settings.dust_request_ttl_seconds // 60} min. "
-        "Send <code>/cancel</code> to abort."
-    )
+    if chain_type == "ton":
+        amount_display = format_amount_ton(req.amount_wei)
+        await message.answer(
+            "✅ Got it. Now <b>send EXACTLY this amount of TON from your wallet to itself</b>:\n\n"
+            f"  <b>Amount:</b> <code>{amount_display} TON</code>\n"
+            f"  <b>From → To:</b> <code>{address}</code> (yourself)\n"
+            "  <b>Network:</b> TON mainnet\n\n"
+            f"In nanoTON (for max precision): <code>{req.amount_wei}</code>\n\n"
+            "I'll detect it automatically — usually within a minute. "
+            f"This expires in {settings.dust_request_ttl_seconds // 60} min."
+        )
+    elif chain_type == "solana":
+        amount_display = format_amount_sol(req.amount_wei)
+        await message.answer(
+            "✅ Got it. Now <b>send EXACTLY this amount of SOL from your wallet to itself</b>:\n\n"
+            f"  <b>Amount:</b> <code>{amount_display} SOL</code>\n"
+            f"  <b>From → To:</b> <code>{address}</code> (yourself)\n"
+            "  <b>Network:</b> Solana mainnet\n\n"
+            f"In lamports (for max precision): <code>{req.amount_wei}</code>\n\n"
+            "I'll detect it automatically — usually within a minute. "
+            f"This expires in {settings.dust_request_ttl_seconds // 60} min."
+        )
+    else:
+        chain = get_chain(req.chain_id)
+        amount_eth = format_amount_eth(req.amount_wei)
+        await message.answer(
+            "✅ Got it. Now <b>send EXACTLY this amount from your wallet to itself</b>:\n\n"
+            f"  <b>Amount:</b> <code>{amount_eth} ETH</code>\n"
+            f"  <b>From → To:</b> <code>{address}</code> (yourself)\n"
+            f"  <b>Network:</b> {chain.name}\n\n"
+            f"In wei (for max precision): <code>{req.amount_wei}</code>\n\n"
+            "I'll detect it automatically — usually within a minute of confirmation. "
+            f"This expires in {settings.dust_request_ttl_seconds // 60} min. "
+            "Send <code>/cancel</code> to abort."
+        )
     log.info(
         "verify_command",
         tg_user_id=user_id,
         chat_id=chat_id,
         address=address,
-        chain_id=req.chain_id,
+        chain_type=chain_type,
+        chain_id=chain_id,
         amount_wei=req.amount_wei,
     )
 

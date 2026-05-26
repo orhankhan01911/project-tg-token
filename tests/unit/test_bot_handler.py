@@ -186,7 +186,9 @@ async def test_verify_rejects_bad_address(db) -> None:
     cmd = CommandObject(prefix="/", command="verify", mention=None, args="not-an-address")
     await on_verify(msg, cmd, bot=_make_bot(), db=db)
     msg.answer.assert_awaited_once()
-    assert "0x-prefixed" in msg.answer.await_args.args[0]
+    # Message must tell user supported address formats (updated for multi-chain)
+    reply = msg.answer.await_args.args[0]
+    assert "Usage" in reply or "EVM" in reply or "address" in reply.lower()
 
 
 async def test_verify_rejects_when_no_registered_chat(db) -> None:
