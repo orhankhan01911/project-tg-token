@@ -83,13 +83,12 @@ jobs:
           MSG="🚀 *tg-token* deployed — bot is live"
           curl -sf -X POST http://127.0.0.1:8787/send \
             -H "Content-Type: application/json" \
-            -d "{\"to\":\"CI/CD tg token\",\"body\":$(echo "$MSG" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')}" || true
+            -d "{\"to\":\"CI/CD tg token\",\"body\":$(printf '%s' "$MSG" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')}" || true
 
       - name: Notify deploy failure
         if: failure()
         run: |
-          MSG="❌ *tg-token* deploy FAILED — check Actions logs
-https://github.com/orhankhan01911/project-tg-token/actions"
+          MSG="$(printf '❌ *tg-token* deploy FAILED — check Actions logs\nhttps://github.com/orhankhan01911/project-tg-token/actions')"
           curl -sf -X POST http://127.0.0.1:8787/send \
             -H "Content-Type: application/json" \
-            -d "{\"to\":\"CI/CD tg token\",\"body\":$(echo "$MSG" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')}" || true
+            -d "{\"to\":\"CI/CD tg token\",\"body\":$(printf '%s' "$MSG" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')}" || true
