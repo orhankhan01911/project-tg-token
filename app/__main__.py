@@ -52,6 +52,34 @@ def _init_sentry() -> None:
     log.info("sentry_enabled")
 
 
+async def _wait_for_telegram(bot: Bot, max_attempts: int = 10, base_delay: float = 2.0) -> None:
+    """Retry bot.get_me() with exponential backoff until the Telegram API is reachable.
+
+    Containers on a fresh bridge network can have a brief window (~1-2s) where
+    DNS/NAT rules aren't wired yet.  Rather than crash-restart (which leaves a
+    spurious TelegramNetworkError in logs), we absorb the transient here.
+    """
+    from aiogram.exceptions import TelegramNetworkError
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            me = await bot.get_me()
+            log.info("telegram_connected", username=me.username, attempt=attempt)
+            return
+        except TelegramNetworkError as exc:
+            if attempt == max_attempts:
+                raise
+            delay = min(base_delay * (2 ** (attempt - 1)), 30.0)
+            log.warning(
+                "telegram_connect_retry",
+                attempt=attempt,
+                max_attempts=max_attempts,
+                delay_s=round(delay, 1),
+                error=str(exc),
+            )
+            await asyncio.sleep(delay)
+
+
 async def _run() -> int:
     if not settings.bot_token:
         log.error("bot_token_missing", hint="set BOT_TOKEN in .env")
@@ -91,6 +119,10 @@ async def _run() -> int:
         allowed_updates=ALLOWED_UPDATES,
         mongo_db=db.name,
     )
+
+    # Ensure Telegram API is reachable before handing off to aiogram's polling
+    # loop (which calls get_me() itself and would crash on a cold network).
+    await _wait_for_telegram(bot)
 
     # Background dust watcher in the same event loop. Cancelled on shutdown.
     watcher_task = asyncio.create_task(watcher_loop(db, bot))
