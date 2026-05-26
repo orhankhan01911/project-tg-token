@@ -210,10 +210,16 @@ async def find_self_transfer(
     address: str,
     expected_value_wei: int,
     blocks_to_scan: int = 15,
+    tolerance_wei: int = 0,
 ) -> TxRecord | None:
     """Scan the last `blocks_to_scan` blocks for a tx where
-    `from == to == address` and `value == expected_value_wei`. Returns
-    the most recent matching tx, or None.
+    `from == to == address` and `value ≈ expected_value_wei`.
+
+    `tolerance_wei` allows fuzzy matching: the tx value must be within
+    ±tolerance_wei of the stored amount. This handles wallets (e.g. MetaMask)
+    that cap ETH input at 8 decimal places and round away the per-user suffix
+    — the user sends the base amount, which is within the suffix range of the
+    stored amount. Default (0) = exact match.
 
     Why scan-from-tip vs cursor: missed polls self-heal. If we cached
     "last seen block" and the watcher process restarted between blocks,
@@ -236,7 +242,7 @@ async def find_self_transfer(
                 tx.to_address is not None
                 and tx.from_address == addr
                 and tx.to_address == addr
-                and tx.value_wei == expected_value_wei
+                and abs(tx.value_wei - expected_value_wei) <= tolerance_wei
             ):
                 # Latest match wins (highest block).
                 if best is None or tx.block_number > best.block_number:

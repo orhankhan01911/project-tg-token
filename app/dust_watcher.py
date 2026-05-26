@@ -144,6 +144,7 @@ async def _process_request(
                 address=req.address,
                 expected_value_wei=req.amount_wei,
                 blocks_to_scan=500,  # Base: 2s/block → ~16min window; was 15 (30s) which missed slow users
+                tolerance_wei=10_000_000,  # suffix range = 10^7; wallets round to base, diff ≤ max_suffix
             )
         except Exception as e:
             bind.warning("dust_scan_failed", err=repr(e))
@@ -178,6 +179,7 @@ async def _process_request(
                 address=req.address,
                 expected_value_wei=req.amount_wei,
                 blocks_to_scan=500,  # same wide window for reorg checks
+                tolerance_wei=10_000_000,  # keep consistent with PENDING scan
             )
         except Exception as e:
             bind.warning("dust_recheck_failed", err=repr(e))
