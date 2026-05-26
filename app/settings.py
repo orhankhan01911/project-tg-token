@@ -33,9 +33,10 @@ class Settings(BaseSettings):
     dust_chain_id: int = 84532
 
     # Base dust amount in wei. The unique amount = base + suffix where the
-    # suffix is hash(tg_user_id, chat_id, server_nonce) % 10^7. So total
-    # amount stays under ~0.0000000110 ETH (gas-dominated cost).
-    dust_base_wei: int = 10_000_000_000  # 1e10 wei = 0.00000001 ETH
+    # suffix is hash(tg_user_id, chat_id, server_nonce) % 10^7. Total
+    # amount ≈ 0.00004 ETH ≈ $0.10 at $2500/ETH — large enough to be
+    # clearly non-zero in all wallet UIs and prevent accidental 0-value sends.
+    dust_base_wei: int = 40_000_000_000_000  # 4e13 wei = 0.00004 ETH ≈ $0.10
 
     # Minimum confirmations before approving. 5 is conservative for Base
     # Sepolia; mainnet ETH should be 12+. Per-chain table in evm.py is the
