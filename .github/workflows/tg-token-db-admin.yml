@@ -1,0 +1,23 @@
+name: tg-token-db-admin
+on:
+  workflow_dispatch:
+    inputs:
+      js:
+        description: "mongosh JS to run against tg_token db"
+        required: true
+jobs:
+  run:
+    runs-on: [self-hosted, hetzner]
+    timeout-minutes: 5
+    steps:
+      - name: Run mongo command
+        env:
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          KEY_FILE=$(mktemp)
+          printf '%s\n' "$SSH_KEY" > "$KEY_FILE"
+          chmod 600 "$KEY_FILE"
+          SSH="ssh -i $KEY_FILE -o StrictHostKeyChecking=no -o ConnectTimeout=15 ${SSH_USER}@127.0.0.1"
+          $SSH "docker exec tg-token-mongo mongosh tg_token --quiet --eval '${{ github.event.inputs.js }}'"
+          rm -f "$KEY_FILE"
