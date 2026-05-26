@@ -1,0 +1,39 @@
+name: tg-token-clear-user
+
+# One-shot: wipe pending_joins + dust_requests + verifications for a given tg_user_id.
+# Usage: workflow_dispatch with tg_user_id input (defaults to owner 1598057702).
+
+on:
+  workflow_dispatch:
+    inputs:
+      tg_user_id:
+        description: "Telegram user ID to clear"
+        required: true
+        default: "1598057702"
+
+jobs:
+  clear:
+    runs-on: [self-hosted, hetzner]
+    timeout-minutes: 5
+
+    steps:
+      - name: Clear user records from MongoDB
+        env:
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          UID_INPUT: ${{ github.event.inputs.tg_user_id }}
+        run: |
+          KEY_FILE=$(mktemp)
+          printf '%s\n' "$SSH_KEY" > "$KEY_FILE"
+          chmod 600 "$KEY_FILE"
+          SSH="ssh -i $KEY_FILE -o StrictHostKeyChecking=no -o ConnectTimeout=15 ${SSH_USER}@127.0.0.1"
+          $SSH "docker exec tg-token-mongo mongosh tg_token --quiet --eval '
+            var uid = $UID_INPUT;
+            var r1 = db.pending_joins.deleteMany({tg_user_id: uid});
+            var r2 = db.dust_requests.deleteMany({tg_user_id: uid});
+            var r3 = db.verifications.deleteMany({tg_user_id: uid});
+            print(\"pending_joins deleted:\", r1.deletedCount);
+            print(\"dust_requests deleted:\", r2.deletedCount);
+            print(\"verifications deleted:\", r3.deletedCount);
+          '"
+          rm -f "$KEY_FILE"
