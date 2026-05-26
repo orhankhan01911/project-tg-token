@@ -209,6 +209,45 @@ async def on_my_chat_member(
     log.info("chat_registered", chat_id=chat_id, owner=owner_tg_id)
 
 
+@router.chat_member()
+async def on_chat_member_left(
+    update: ChatMemberUpdated,
+    db: AsyncIOMotorDatabase[Any],
+) -> None:
+    """Wipe verification + dust data when a member leaves or is kicked.
+
+    Forces them through /verify again on next join attempt — prevents
+    the stale-verification bypass where a previously verified user
+    rejoins without re-proving wallet ownership.
+    """
+    new_status = update.new_chat_member.status
+    if new_status not in ("left", "kicked"):
+        return
+
+    tg_user_id: int = update.new_chat_member.user.id
+    chat_id: int = update.chat.id
+
+    r_verif = await cast(Any, db.verifications).delete_many(
+        {"tg_user_id": tg_user_id, "chat_id": chat_id}
+    )
+    r_dust = await cast(Any, db.dust_requests).delete_many(
+        {"tg_user_id": tg_user_id, "chat_id": chat_id}
+    )
+    r_joins = await cast(Any, db.pending_joins).delete_many(
+        {"tg_user_id": tg_user_id, "chat_id": chat_id}
+    )
+
+    log.info(
+        "member_left_records_cleared",
+        chat_id=chat_id,
+        tg_user_id=tg_user_id,
+        status=new_status,
+        verifications=r_verif.deleted_count,
+        dust_requests=r_dust.deleted_count,
+        pending_joins=r_joins.deleted_count,
+    )
+
+
 @router.message(Command("verify"))
 async def on_verify(
     message: Message,
