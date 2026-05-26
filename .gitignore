@@ -10,7 +10,8 @@ htmlcov/
 build/
 dist/
 
-*.env
+.env*
+.env.*
 *.local
 
 node_modules/
