@@ -15,3 +15,18 @@ def _isolate_env(monkeypatch: pytest.MonkeyPatch) -> None:
     import app.settings as _settings_mod
 
     monkeypatch.setattr(_settings_mod.settings, "alchemy_api_key", "")
+
+
+@pytest.fixture(autouse=True)
+def _clear_verify_cooldown() -> None:
+    """Reset the in-process /verify rate-limit store between tests.
+
+    The store is a module-level dict in app.bot. Without clearing it, a test
+    that calls on_verify with a valid address would set a 5-min cooldown for
+    that user_id, breaking subsequent tests that use the same user_id.
+    """
+    import app.bot as _bot_mod
+
+    _bot_mod._verify_cooldown_store.clear()
+    yield  # type: ignore[misc]
+    _bot_mod._verify_cooldown_store.clear()

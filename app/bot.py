@@ -17,6 +17,7 @@ edge resets connections under load and "no silent failure" is the bar.
 from __future__ import annotations
 
 import re
+import time
 from datetime import UTC, datetime
 from typing import Any, cast
 
@@ -46,6 +47,17 @@ router = Router(name="tg_token")
 # 0x-prefixed 40-hex-char address. We don't enforce EIP-55 checksum since
 # wallets often emit lowercase; we lowercase before storage.
 _ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
+
+# ---------------------------------------------------------------------------
+# In-process rate-limit store for /verify cooldowns.
+# Key: tg_user_id (int), Value: unix timestamp of last /verify call.
+# TODO: replace with Redis when dp["redis"] is wired into __main__.py.
+#       Use app.redis_store.make_redis(settings.redis_url) and inject via
+#       dp["redis"] = redis_client. Then read from handler kwarg and call
+#       await redis_client.set(key, "1", ex=300) / await redis_client.get(key).
+# ---------------------------------------------------------------------------
+_verify_cooldown_store: dict[int, float] = {}
+_VERIFY_COOLDOWN_SECONDS = 300  # 5 minutes
 
 
 def _telegram_retry() -> AsyncRetrying:
@@ -194,6 +206,18 @@ async def on_verify(
         )
         return
     address = arg.lower()
+
+    # Rate-limit: reject if the user has submitted a valid address within the
+    # last 5 min. This prevents spamming /verify to trigger repeated expensive
+    # watcher scans (500 eth_getBlockByNumber RPC calls every 30s per request).
+    # Checked after address validation so malformed-arg calls are cheap and
+    # don't consume or check the cooldown slot.
+    now = time.monotonic()
+    last_call = _verify_cooldown_store.get(user_id)
+    if last_call is not None and (now - last_call) < _VERIFY_COOLDOWN_SECONDS:
+        await message.answer("⏳ Please wait a few minutes before verifying again.")
+        return
+    _verify_cooldown_store[user_id] = now
 
     # Find the most recent chat the user has a pending join_request for.
     # We don't track pending join requests in Mongo (Telegram is the
