@@ -1,0 +1,30 @@
+name: tg-token-check-gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      chat_id:
+        description: "Chat ID to inspect"
+        required: true
+        default: "-1003986165840"
+
+jobs:
+  check:
+    runs-on: [self-hosted, hetzner]
+    steps:
+      - name: Dump token gate config
+        env:
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          CHAT: ${{ github.event.inputs.chat_id }}
+        run: |
+          KEY_FILE=$(mktemp)
+          printf '%s\n' "$SSH_KEY" > "$KEY_FILE"
+          chmod 600 "$KEY_FILE"
+          SSH="ssh -i $KEY_FILE -o StrictHostKeyChecking=no -o ConnectTimeout=15 ${SSH_USER}@127.0.0.1"
+          $SSH "docker exec tg-token-mongo mongosh tg_token --quiet --eval '
+            var gate = db.token_gates.findOne({chat_id: $CHAT});
+            if (!gate) { print(\"NO GATE FOUND\"); } 
+            else { gate.tokens.forEach(t => print(t.name, \"chain:\", t.chain, \"contract:\", t.contract)); }
+          '"
+          rm -f "$KEY_FILE"
