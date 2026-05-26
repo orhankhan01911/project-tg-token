@@ -38,6 +38,14 @@ class Settings(BaseSettings):
     # clearly non-zero in all wallet UIs and prevent accidental 0-value sends.
     dust_base_wei: int = 40_000_000_000_000  # 4e13 wei = 0.00004 ETH ≈ $0.10
 
+    # Base dust amount in nanoTON (TON has 9 decimal places).
+    # 10_000_000 nanoTON = 0.01 TON ≈ $0.05. Suffix = hash % 1_000_000.
+    dust_base_nanoton: int = 10_000_000
+
+    # Base dust amount in lamports (Solana has 9 decimal places).
+    # 1_000_000 lamports = 0.001 SOL ≈ $0.15. Suffix = hash % 100_000.
+    dust_base_lamports: int = 1_000_000
+
     # Minimum confirmations before approving. 5 is conservative for Base
     # Sepolia; mainnet ETH should be 12+. Per-chain table in evm.py is the
     # authoritative source.

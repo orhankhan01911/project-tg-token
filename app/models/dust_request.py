@@ -51,7 +51,11 @@ class DustRequest(BaseModel):
     # Block number at the time the request was issued. Used by the watcher to
     # enforce tx freshness: only txs mined at or after this block are eligible.
     # None on legacy rows (pre-patch) — watcher falls back to no freshness gate.
+    # For TON this stores the logical time (LT); for Solana the slot number.
     created_block: int | None = None
+    # "evm" | "ton" | "solana" — controls which scanner the watcher uses.
+    # Defaults to "evm" so legacy rows (pre-patch) are handled correctly.
+    chain_type: str = "evm"
 
     @staticmethod
     def make_id(tg_user_id: int, chat_id: int) -> str:
@@ -67,16 +71,18 @@ class DustRequest(BaseModel):
         amount_wei: int,
         ttl_seconds: int,
         created_block: int | None = None,
+        chain_type: str = "evm",
     ) -> DustRequest:
         now = _now()
         return DustRequest(
             _id=DustRequest.make_id(tg_user_id, chat_id),
             tg_user_id=tg_user_id,
             chat_id=chat_id,
-            address=address.lower(),
+            address=address if chain_type != "evm" else address.lower(),
             chain_id=chain_id,
             amount_wei=amount_wei,
             expires_at=now + timedelta(seconds=ttl_seconds),
             created_at=now,
             created_block=created_block,
+            chain_type=chain_type,
         )
