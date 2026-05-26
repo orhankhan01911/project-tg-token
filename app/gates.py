@@ -12,13 +12,14 @@ Token balance reads go through app.chains.evm — no direct RPC calls in this fi
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 import httpx
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from app.balance_gate import evaluate_token_gate, load_token_gate
 from app.chains.evm import chain_id_for, erc20_balance_of, eth_balance_of
 from app.logging_conf import get_logger
 from app.settings import settings
@@ -34,6 +35,7 @@ class Approve:
 @dataclass(frozen=True)
 class Decline:
     reason: str
+    message: str | None = field(default=None)
 
 
 @dataclass(frozen=True)
@@ -114,4 +116,40 @@ async def evaluate(
     if verif is None:
         return NeedsVerify(reason="requires_verification")
 
+    # ── Token gate (OR logic, multi-chain) ───────────────────────────────────
+    token_gate = await load_token_gate(db, chat_id=chat_id)
+    if token_gate is not None:
+        # Build addresses dict from verified wallets.
+        # v0: EVM only — users must dust-verify their EVM wallet first.
+        # TON/Solana: add when separate verification rows exist for those chains.
+        addresses: dict[str, str] = {}
+        address: str | None = verif.get("address")
+        if address:
+            addresses["evm"] = address
+
+        if not addresses:
+            return Decline(
+                reason="no_verified_wallet",
+                message=(
+                    "❌ <b>No verified wallet found.</b>\n\n"
+                    "Run /verify first to link your wallet, then try joining again."
+                ),
+            )
+
+        async with httpx.AsyncClient(timeout=10.0) as token_http:
+            passed = await evaluate_token_gate(token_http, gate=token_gate, addresses=addresses)
+
+        if passed:
+            return Approve(reason="token_balance_gate_passed")
+
+        return Decline(
+            reason="insufficient_token_balance",
+            message=(
+                "❌ <b>Insufficient token balance.</b>\n\n"
+                "You need to hold at least $10 of one of the required tokens. "
+                "Run /verify first to link your wallet, then try joining again."
+            ),
+        )
+
+    # ── AND-logic gate (legacy EVM threshold gates) ───────────────────────────
     return await _check_gates(db, http, chat_id=chat_id, address=verif["address"])
