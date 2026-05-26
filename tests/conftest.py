@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from collections.abc import Generator
+
 import pytest
 
 
@@ -18,7 +22,7 @@ def _isolate_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
-def _clear_verify_cooldown() -> None:
+def _clear_verify_cooldown() -> Generator[None, None, None]:
     """Reset the in-process /verify rate-limit store between tests.
 
     The store is a module-level dict in app.bot. Without clearing it, a test
