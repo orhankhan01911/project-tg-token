@@ -1,6 +1,8 @@
 name: deploy-tg-token
 
 # Manual deploy — clone/pull the repo, build image, start compose, verify bot.
+# All git + Docker operations run as root via SSH (runner lacks Docker socket and
+# previously cloned the repo as root, so /root/tg-token is the canonical path).
 # Notifications → WhatsApp "CI/CD tg token" group via local WA sidecar (:8787).
 #
 # Required repository secrets:
@@ -20,63 +22,66 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - name: Clone / update tg-token repo
-        run: |
-          DEST="$HOME/tg-token"
-          if [ -d "$DEST/.git" ]; then
-            echo "==> pulling latest"
-            git -C "$DEST" pull
-          else
-            echo "==> fresh clone"
-            git clone https://github.com/orhankhan01911/project-tg-token.git "$DEST"
-          fi
-
-      - name: Create .env.prod if not present
-        run: |
-          DEST="$HOME/tg-token"
-          if [ ! -f "$DEST/.env.prod" ]; then
-            cp "$DEST/.env.prod.template" "$DEST/.env.prod"
-            sed -i "s|YOUR_BOT_TOKEN_HERE|${{ secrets.TG_TOKEN_BOT_TOKEN }}|g" "$DEST/.env.prod"
-            sed -i "s|YOUR_TELEGRAM_USER_ID|${{ secrets.TG_TOKEN_OWNER_ID }}|g"  "$DEST/.env.prod"
-            sed -i "s|YOUR_ALCHEMY_KEY|${{ secrets.TG_TOKEN_ALCHEMY_KEY }}|g"    "$DEST/.env.prod"
-            sed -i "s|YOUR_HELIUS_KEY|${{ secrets.TG_TOKEN_HELIUS_KEY }}|g"      "$DEST/.env.prod"
-            echo "==> .env.prod created"
-          else
-            echo "==> .env.prod already exists, skipping"
-          fi
-
-      - name: Build image + start stack (via root SSH — runner lacks Docker socket)
+      - name: Deploy via root SSH
         env:
           SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           SSH_USER: ${{ secrets.SSH_USER }}
+          BOT_TOKEN: ${{ secrets.TG_TOKEN_BOT_TOKEN }}
+          OWNER_ID: ${{ secrets.TG_TOKEN_OWNER_ID }}
+          ALCHEMY_KEY: ${{ secrets.TG_TOKEN_ALCHEMY_KEY }}
+          HELIUS_KEY: ${{ secrets.TG_TOKEN_HELIUS_KEY }}
         run: |
           KEY_FILE=$(mktemp)
           printf '%s\n' "$SSH_KEY" > "$KEY_FILE"
           chmod 600 "$KEY_FILE"
           SSH="ssh -i $KEY_FILE -o StrictHostKeyChecking=no -o ConnectTimeout=15 ${SSH_USER}@127.0.0.1"
 
-          TG_DIR="$HOME/tg-token"
+          # ── 1. Clone or pull ──────────────────────────────────────────────────
+          echo "==> clone / pull"
+          $SSH "bash -s" << 'REMOTE'
+          set -e
+          TG_DIR=/root/tg-token
+          if [ -d "$TG_DIR/.git" ]; then
+            git -C "$TG_DIR" pull
+          else
+            git clone https://github.com/orhankhan01911/project-tg-token.git "$TG_DIR"
+          fi
+          REMOTE
 
+          # ── 2. Write .env.prod (template on remote, secrets from runner env) ──
+          # Pipe template through local sed (secrets expand here, never touch SSH args).
+          echo "==> writing .env.prod"
+          $SSH "cat /root/tg-token/.env.prod.template" \
+            | sed \
+                -e "s|YOUR_BOT_TOKEN_HERE|${BOT_TOKEN}|g" \
+                -e "s|YOUR_TELEGRAM_USER_ID|${OWNER_ID}|g" \
+                -e "s|YOUR_ALCHEMY_KEY|${ALCHEMY_KEY}|g" \
+                -e "s|YOUR_HELIUS_KEY|${HELIUS_KEY}|g" \
+            | $SSH "cat > /root/tg-token/.env.prod"
+          echo "==> .env.prod written"
+
+          # ── 3. Build Docker image ─────────────────────────────────────────────
           echo "==> building Docker image"
-          $SSH "cd '$TG_DIR' && docker build -t tg-token-bot:latest ."
+          $SSH "cd /root/tg-token && docker build -t tg-token-bot:latest ."
 
+          # ── 4. Start / restart stack ──────────────────────────────────────────
           echo "==> starting compose stack"
-          $SSH "cd '$TG_DIR/infra' && docker compose -f docker-compose.prod.yml up -d --remove-orphans"
+          $SSH "cd /root/tg-token/infra && docker compose -f docker-compose.prod.yml up -d --remove-orphans"
 
+          # ── 5. Verify bot alive ───────────────────────────────────────────────
           echo "==> waiting 12s for bot to connect..."
           sleep 12
 
           echo "==> recent logs"
           $SSH "docker logs --tail=50 tg-token-bot"
 
-          echo ""
           $SSH "docker logs tg-token-bot 2>&1 | grep -q 'bot_starting'" \
             && echo "✅ Bot is alive and polling Telegram" \
             || (echo "❌ bot_starting not found — check logs above" && exit 1)
 
           rm -f "$KEY_FILE"
 
-      # ── Notifications ────────────────────────────────────────────────────────
+      # ── Notifications ─────────────────────────────────────────────────────────
       - name: Notify deploy success
         if: success()
         run: |
