@@ -121,6 +121,21 @@ async def on_chat_join_request(
             with attempt:
                 await bot.send_message(chat_id=user_id, text=text)
         bind.info("verify_dm_sent", reason=decision.reason)
+        # Record that this user has an active join request for this chat so
+        # _resolve_pending_chat can look it up when the user calls /verify.
+        # This is lightweight (upsert on composite key) and is cleaned up
+        # when the dust_request is created in on_verify.
+        await cast(Any, db.pending_joins).update_one(
+            {"tg_user_id": user_id, "chat_id": chat_id},
+            {
+                "$set": {
+                    "tg_user_id": user_id,
+                    "chat_id": chat_id,
+                    "created_at": datetime.now(tz=UTC),
+                }
+            },
+            upsert=True,
+        )
     except TelegramAPIError as e:
         # Most likely cause: user hasn't /start'd the bot. We can't
         # decline (the user can't take action either). Logged; they'll
@@ -225,11 +240,14 @@ async def on_verify(
     # NeedsVerify'd against because the bot DMd them. v0 simplification:
     # require exactly one registered chat; if multiple, the owner needs
     # to scope per-chat (deferred to S3).
+    # Resolve the chat this user is verifying against. Returns None if the
+    # user has neither an active dust_request nor a pending_join record
+    # (i.e. they never clicked a real invite link).
     chat_id = await _resolve_pending_chat(db, tg_user_id=user_id)
     if chat_id is None:
         await message.answer(
-            "I don't see a pending join request from you on any registered chat. "
-            "Click the invite link first, then run <code>/verify</code>."
+            "No pending group join request found. "
+            "Click a group's invite link first, then come back here to verify."
         )
         return
 
@@ -240,6 +258,10 @@ async def on_verify(
         address=address,
         chain_id=settings.dust_chain_id,
     )
+    # Clean up the pending_join record — the dust_request is now the
+    # authoritative source for "is this user verifying for this chat".
+    await cast(Any, db.pending_joins).delete_one({"tg_user_id": user_id, "chat_id": chat_id})
+
     chain = get_chain(req.chain_id)
     amount_eth = format_amount_eth(req.amount_wei)
 
@@ -304,27 +326,35 @@ async def on_health(message: Message) -> None:
 
 
 async def _resolve_pending_chat(db: AsyncIOMotorDatabase[Any], *, tg_user_id: int) -> int | None:
-    """Best-guess: the chat this user is currently being asked to verify
-    against. v0 heuristic: the user is in the bot's DB as a NeedsVerify
-    target — so the chat is the single chat that's registered. If there
-    are multiple registered chats and the user has join requests in
-    several, we'd need scoped commands (`/verify chat_id 0x...`); for
-    v0 we pick the most-recently-created chat that they're not already
-    approved in."""
-    # If the user already has a non-expired pending dust request, prefer
-    # that chat.
+    """Return the chat_id this user should verify against.
+
+    Two sources, checked in order:
+    1. An active (non-expired) pending dust_request — user already started
+       the flow; we reuse the same chat.
+    2. A pending_joins record written when the bot DM'd the user after their
+       join_request — user has clicked the invite link but hasn't called
+       /verify yet.
+
+    Security: the old fallback that guessed "most recently registered chat"
+    has been removed. A user with no join_request AND no active dust_request
+    now gets None, preventing /verify from binding against a random chat.
+    """
+    # Path 1: existing active dust request (re-running /verify or /cancel).
     existing = await db.dust_requests.find_one(  # type: ignore[union-attr]
         {"tg_user_id": tg_user_id, "expires_at": {"$gt": datetime.now(tz=UTC)}}
     )
     if existing:
         return int(existing["chat_id"])
 
-    # Otherwise the most recent registered chat where the user isn't a
-    # whitelisted owner.
-    cursor = db.chats.find().sort("created_at", -1)  # type: ignore[union-attr]
-    async for chat in cursor:
-        if chat.get("owner_tg_id") != tg_user_id:
-            return int(chat["_id"])
+    # Path 2: pending_join record — written by on_chat_join_request when the
+    # bot DM'd the user. Proves they clicked a real invite link.
+    pending = await cast(Any, db.pending_joins).find_one(
+        {"tg_user_id": tg_user_id},
+        sort=[("created_at", -1)],
+    )
+    if pending:
+        return int(pending["chat_id"])
+
     return None
 
 

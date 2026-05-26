@@ -190,6 +190,8 @@ async def test_verify_rejects_bad_address(db) -> None:
 
 
 async def test_verify_rejects_when_no_registered_chat(db) -> None:
+    """After Patch 3, /verify with no pending join request returns a specific
+    error — the old fallback (guess most-recent chat) is gone."""
     msg = _make_message(user_id=42)
     cmd = CommandObject(
         prefix="/",
@@ -199,14 +201,23 @@ async def test_verify_rejects_when_no_registered_chat(db) -> None:
     )
     await on_verify(msg, cmd, bot=_make_bot(), db=db)
     msg.answer.assert_awaited_once()
-    assert (
-        "no pending" in msg.answer.await_args.args[0].lower()
-        or "click the invite" in msg.answer.await_args.args[0].lower()
-    )
+    body = msg.answer.await_args.args[0].lower()
+    # Message must tell the user to click an invite link first.
+    assert "no pending" in body or "click a group" in body or "click the invite" in body
 
 
 async def test_verify_happy_path_creates_dust_request(db) -> None:
+    """Happy path: user clicked an invite link (pending_join seeded), then
+    calls /verify with a valid address. Patch 3 requires pending_join to exist."""
     await db.chats.insert_one({"_id": -1001, "owner_tg_id": 1})
+    # Simulate on_chat_join_request having written a pending_join record.
+    await db.pending_joins.insert_one(
+        {
+            "tg_user_id": 42,
+            "chat_id": -1001,
+            "created_at": datetime.now(tz=UTC),
+        }
+    )
     msg = _make_message(user_id=42)
     cmd = CommandObject(
         prefix="/",
@@ -239,15 +250,21 @@ async def test_cancel_with_no_pending_says_so(db) -> None:
 
 async def test_cancel_existing_pending(db) -> None:
     await db.chats.insert_one({"_id": -1001, "owner_tg_id": 1})
-    # Issue a request first
-    msg = _make_message(user_id=42)
-    cmd = CommandObject(
-        prefix="/",
-        command="verify",
-        mention=None,
-        args="0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    # Directly seed a pending dust_request (simulates the user having already
+    # run /verify via a pending_join flow). Seeding directly avoids depending
+    # on on_verify's internal logic in this cancel-focused test.
+    await db.dust_requests.insert_one(
+        {
+            "_id": "42:-1001",
+            "tg_user_id": 42,
+            "chat_id": -1001,
+            "address": "0xd8da6bf26964af9d7eed9e03e53415d37aa96045",
+            "chain_id": 84532,
+            "amount_wei": 40_001_234_567_890,
+            "expires_at": datetime.now(tz=UTC) + timedelta(hours=1),
+            "status": "pending",
+        }
     )
-    await on_verify(msg, cmd, bot=_make_bot(), db=db)
 
     # Now cancel
     cancel_msg = _make_message(user_id=42)
