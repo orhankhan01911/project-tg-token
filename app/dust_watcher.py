@@ -143,7 +143,7 @@ async def _process_request(
                 chain_id=req.chain_id,
                 address=req.address,
                 expected_value_wei=req.amount_wei,
-                blocks_to_scan=15,
+                blocks_to_scan=500,  # Base: 2s/block → ~16min window; was 15 (30s) which missed slow users
             )
         except Exception as e:
             bind.warning("dust_scan_failed", err=repr(e))
@@ -177,7 +177,7 @@ async def _process_request(
                 chain_id=req.chain_id,
                 address=req.address,
                 expected_value_wei=req.amount_wei,
-                blocks_to_scan=30,
+                blocks_to_scan=500,  # same wide window for reorg checks
             )
         except Exception as e:
             bind.warning("dust_recheck_failed", err=repr(e))
