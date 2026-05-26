@@ -16,6 +16,7 @@ from app.models.chat import Chat
 from app.models.dust_request import DustRequest, DustRequestStatus
 from app.models.event import Event
 from app.models.gate import Chain, Gate, GateKind
+from app.models.token_gate import TokenGate, TokenSpec
 from app.models.verification import Verification, VerificationMethod
 from app.models.whitelist import WhitelistEntry
 
@@ -27,6 +28,8 @@ __all__ = [
     "Event",
     "Gate",
     "GateKind",
+    "TokenGate",
+    "TokenSpec",
     "Verification",
     "VerificationMethod",
     "WhitelistEntry",
