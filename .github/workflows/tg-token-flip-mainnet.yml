@@ -23,18 +23,19 @@ jobs:
           chmod 600 "$KEY_FILE"
           SSH="ssh -i $KEY_FILE -o StrictHostKeyChecking=no -o ConnectTimeout=15 ${SSH_USER}@127.0.0.1"
 
-          ENV_FILE="$HOME/tg-token/.env.prod"
+          ENV_FILE="/root/tg-token/.env.prod"
 
           echo "==> Setting DUST_CHAIN_ID=8453 (Base mainnet)"
-          $SSH "
-            if grep -q 'DUST_CHAIN_ID' '$ENV_FILE'; then
-              sed -i 's/.*DUST_CHAIN_ID.*/DUST_CHAIN_ID=8453/' '$ENV_FILE'
-            else
-              echo 'DUST_CHAIN_ID=8453' >> '$ENV_FILE'
-            fi
-            echo 'Updated .env.prod:'
-            grep 'DUST_CHAIN_ID' '$ENV_FILE'
-          "
+          $SSH "bash -s" << 'REMOTE'
+          ENV_FILE="/root/tg-token/.env.prod"
+          if grep -q 'DUST_CHAIN_ID' "$ENV_FILE"; then
+            sed -i 's/.*DUST_CHAIN_ID.*/DUST_CHAIN_ID=8453/' "$ENV_FILE"
+          else
+            echo 'DUST_CHAIN_ID=8453' >> "$ENV_FILE"
+          fi
+          echo 'Updated .env.prod:'
+          grep 'DUST_CHAIN_ID' "$ENV_FILE"
+          REMOTE
 
           echo "==> Restarting bot container"
           $SSH "docker restart tg-token-bot"
