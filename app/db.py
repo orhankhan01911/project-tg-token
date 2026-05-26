@@ -65,6 +65,17 @@ async def ensure_indexes(db: AsyncIOMotorDatabase[Any]) -> None:
         unique=True,
         name="verifications_chain_address_unique",
     )
+    # Prevent one dust tx from satisfying multiple requests (e.g. same wallet
+    # joining two chats). sparse=True so SIWE verifications (which store a
+    # signature in sig_or_txhash) don't falsely conflict with each other on
+    # the empty-string / non-tx-hash values — each dust row will have a unique
+    # tx hash string and sparse index only indexes non-null, non-absent values.
+    await cast(Any, db.verifications).create_index(
+        [("sig_or_txhash", ASCENDING)],
+        unique=True,
+        sparse=True,
+        name="verifications_sig_or_txhash_unique_sparse",
+    )
 
     # Dust verification: pending requests are auto-cleaned via TTL on
     # `expires_at` (Mongo runs the reaper every 60s; effective expiry is
