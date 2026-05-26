@@ -29,8 +29,8 @@ class Settings(BaseSettings):
 
     # --- Dust verification ---
     # Default chain users verify on. Per-chat config in S3+ overrides this.
-    # 84532 = Base Sepolia. 8453 = Base. 1 = Mainnet ETH. 11155111 = Sepolia.
-    dust_chain_id: int = 84532
+    # 8453 = Base mainnet. 1 = Mainnet ETH. 84532 = Base Sepolia (testnet only).
+    dust_chain_id: int = 8453
 
     # Base dust amount in wei. The unique amount = base + suffix where the
     # suffix is hash(tg_user_id, chat_id, server_nonce) % 10^7. Total
