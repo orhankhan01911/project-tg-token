@@ -1,0 +1,28 @@
+name: check-tg-token-logs
+
+# Fetch container status + last 80 log lines from the tg-token-bot container.
+# Manual trigger only — useful for quick health checks without SSH.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  logs:
+    runs-on: [self-hosted, hetzner]
+    timeout-minutes: 5
+
+    steps:
+      - name: Get bot logs + container status
+        env:
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          KEY_FILE=$(mktemp)
+          printf '%s\n' "$SSH_KEY" > "$KEY_FILE"
+          chmod 600 "$KEY_FILE"
+          SSH="ssh -i $KEY_FILE -o StrictHostKeyChecking=no -o ConnectTimeout=15 ${SSH_USER}@127.0.0.1"
+          echo "=== Container status ==="
+          $SSH "docker ps | grep tg-token"
+          echo "=== Last 80 log lines ==="
+          $SSH "docker logs --tail=80 tg-token-bot 2>&1"
+          rm -f "$KEY_FILE"
