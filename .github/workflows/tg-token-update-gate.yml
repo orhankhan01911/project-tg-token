@@ -1,0 +1,34 @@
+name: tg-token-update-gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      chat_id:
+        description: "Chat ID"
+        required: true
+        default: "-1003986165840"
+
+jobs:
+  update:
+    runs-on: [self-hosted, hetzner]
+    steps:
+      - name: Update WOJAK to Solana in token gate
+        env:
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          CHAT: ${{ github.event.inputs.chat_id }}
+        run: |
+          KEY_FILE=$(mktemp)
+          printf '%s\n' "$SSH_KEY" > "$KEY_FILE"
+          chmod 600 "$KEY_FILE"
+          SSH="ssh -i $KEY_FILE -o StrictHostKeyChecking=no -o ConnectTimeout=15 ${SSH_USER}@127.0.0.1"
+          $SSH "docker exec tg-token-mongo mongosh tg_token --quiet --eval '
+            var r = db.token_gates.updateOne(
+              {chat_id: $CHAT, \"tokens.name\": \"Wojak\"},
+              {\$set: {\"tokens.\$.chain\": \"solana\", \"tokens.\$.contract\": \"8J69rbLTzWWgUJziFY8jeu5tDwEPBwUz4pKBMr5rpump\"}}
+            );
+            print(\"matched:\", r.matchedCount, \"modified:\", r.modifiedCount);
+            var gate = db.token_gates.findOne({chat_id: $CHAT});
+            gate.tokens.forEach(t => print(t.name, \"chain:\", t.chain));
+          '"
+          rm -f "$KEY_FILE"
