@@ -64,7 +64,7 @@ _ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
 #       await redis_client.set(key, "1", ex=300) / await redis_client.get(key).
 # ---------------------------------------------------------------------------
 _verify_cooldown_store: dict[int, float] = {}
-_VERIFY_COOLDOWN_SECONDS = 300  # 5 minutes
+_VERIFY_COOLDOWN_SECONDS = 60  # 1 minute
 
 
 def _telegram_retry() -> AsyncRetrying:
