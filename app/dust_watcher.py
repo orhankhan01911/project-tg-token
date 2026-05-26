@@ -21,6 +21,7 @@ from datetime import UTC, datetime
 from typing import Any, cast
 
 import httpx
+import pymongo.errors
 from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError, TelegramNetworkError
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -47,6 +48,15 @@ from app.models.gate import Chain
 from app.settings import settings
 
 log = get_logger(__name__)
+
+
+class WalletAlreadyBoundError(Exception):
+    """Raised when the claimed wallet address is already bound to a different
+    Telegram user ID in the verifications collection.
+
+    The caller should DM the user and decline verification rather than
+    leaving the request in DETECTED state with no user-facing feedback.
+    """
 
 
 def _telegram_retry() -> AsyncRetrying:
@@ -95,6 +105,17 @@ async def _persist_verification(
     chain_id: int,
     tx_hash: str,
 ) -> None:
+    """Write a Verification document binding the wallet to the Telegram user.
+
+    Raises:
+        WalletAlreadyBoundError: if the (chain, address) pair is already
+            bound to a *different* tg_user_id. The caller must DM the user
+            and mark the request as cancelled — do not leave it in DETECTED.
+        pymongo.errors.DuplicateKeyError: re-raised if the conflict is on
+            sig_or_txhash (tx already used for a different request) rather
+            than on the chain/address pair. This is a different security
+            violation and the outer loop's broad except will catch it.
+    """
     chain = _chain_slug_for(chain_id)
     v = Verification(
         tg_user_id=tg_user_id,
@@ -105,11 +126,34 @@ async def _persist_verification(
         nonce="",  # dust binding is by tx hash, not nonce
         sig_or_txhash=tx_hash.lower(),
     )
-    await cast(Any, db.verifications).update_one(
-        {"tg_user_id": tg_user_id, "chat_id": chat_id, "chain": chain.value},
-        {"$set": v.model_dump()},
-        upsert=True,
-    )
+    try:
+        await cast(Any, db.verifications).update_one(
+            {"tg_user_id": tg_user_id, "chat_id": chat_id, "chain": chain.value},
+            {"$set": v.model_dump()},
+            upsert=True,
+        )
+    except pymongo.errors.DuplicateKeyError as exc:
+        # A DuplicateKeyError here means either:
+        # (a) (chain, address) is bound to a DIFFERENT tg_user_id — sybil attempt.
+        # (b) sig_or_txhash is already stored — tx reuse across requests.
+        #
+        # Distinguish by checking what's actually in the collection.
+        existing = await cast(Any, db.verifications).find_one(
+            {"chain": chain.value, "address": address.lower()}
+        )
+        if existing is not None and existing.get("tg_user_id") != tg_user_id:
+            # Case (a): wallet bound to a different user.
+            log.warning(
+                "dust_wallet_already_bound",
+                address=address.lower(),
+                chain=chain.value,
+                existing_tg_user_id=existing.get("tg_user_id"),
+                new_tg_user_id=tg_user_id,
+            )
+            raise WalletAlreadyBoundError(address) from exc
+        # Case (b) or same user re-binding: re-raise so the outer handler
+        # logs it as an unexpected duplicate (tx reuse is a security event).
+        raise
 
 
 async def _send_dm(bot: Bot, *, tg_user_id: int, text: str) -> None:
@@ -210,14 +254,35 @@ async def _process_request(
             return
 
         # Confirmed → write verification, approve, DM user.
-        await _persist_verification(
-            db,
-            tg_user_id=req.tg_user_id,
-            chat_id=req.chat_id,
-            address=req.address,
-            chain_id=req.chain_id,
-            tx_hash=tx.hash,
-        )
+        try:
+            await _persist_verification(
+                db,
+                tg_user_id=req.tg_user_id,
+                chat_id=req.chat_id,
+                address=req.address,
+                chain_id=req.chain_id,
+                tx_hash=tx.hash,
+            )
+        except WalletAlreadyBoundError:
+            # Wallet is bound to a different account. Mark the request
+            # cancelled and DM the user — don't leave it in DETECTED forever.
+            await cast(Any, db.dust_requests).update_one(
+                {"_id": req.id},
+                {"$set": {"status": DustRequestStatus.CANCELLED.value}},
+            )
+            await _send_dm(
+                bot,
+                tg_user_id=req.tg_user_id,
+                text=(
+                    "❌ <b>Wallet already linked to another account.</b>\n\n"
+                    f"<code>{req.address}</code> is already bound to a different "
+                    "Telegram account. Use a different wallet address and run "
+                    "<code>/verify</code> again with that wallet."
+                ),
+            )
+            bind.warning("dust_wallet_bound_to_other", address=req.address)
+            return
+
         approved = await _approve_pending_join(bot, chat_id=req.chat_id, tg_user_id=req.tg_user_id)
         await cast(Any, db.dust_requests).update_one(
             {"_id": req.id},
