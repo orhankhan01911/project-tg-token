@@ -63,7 +63,10 @@ async def _wait_for_telegram(bot: Bot, max_attempts: int = 10, base_delay: float
 
     for attempt in range(1, max_attempts + 1):
         try:
-            me = await bot.get_me()
+            # Short per-attempt timeout: on networks where some Telegram IPs
+            # are blocked, aiohttp may land on a slow IPv4 path that takes 60s
+            # to time out.  10s per attempt keeps the retry cadence tight.
+            me = await bot.get_me(request_timeout=10)
             log.info("telegram_connected", username=me.username, attempt=attempt)
             return
         except TelegramNetworkError as exc:
