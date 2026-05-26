@@ -42,7 +42,7 @@ async def test_first_token_passes() -> None:
         patch("app.balance_gate.get_token_price_usd", new_callable=AsyncMock) as mock_price,
         patch("app.balance_gate.spl_balance", new_callable=AsyncMock) as mock_sol,
     ):
-        # 1 500 tokens with 18 decimals × $0.01 = $15
+        # 1 500 tokens with 18 decimals x $0.01 = $15
         mock_bal.return_value = 1_500_000_000_000_000_000_000  # 1500 tokens
         mock_dec.return_value = 18
         mock_price.return_value = Decimal("0.01")  # $0.01/token → $15 total
@@ -69,7 +69,7 @@ async def test_only_last_token_passes() -> None:
     ):
         mock_bal.return_value = 0  # Brett + Wojak both 0
         mock_dec.return_value = 18
-        # 12_000_000 raw at 6 decimals = 12 tokens × $1.00 = $12
+        # 12_000_000 raw at 6 decimals = 12 tokens x $1.00 = $12
         mock_sol.return_value = (12_000_000, 6)
         mock_price.return_value = Decimal("1.00")
 
@@ -118,7 +118,7 @@ async def test_price_unavailable_for_some_but_another_passes() -> None:
         nonlocal call_count
         call_count += 1
         if contract_or_mint == "0xBrett":
-            return Decimal("0.02")  # $0.02 × 1000 tokens = $20
+            return Decimal("0.02")  # $0.02 x 1000 tokens = $20
         return None  # Wojak price unavailable
 
     with (
@@ -193,7 +193,7 @@ async def test_min_usd_not_met() -> None:
         patch("app.balance_gate.get_token_price_usd", new_callable=AsyncMock) as mock_price,
         patch("app.balance_gate.spl_balance", new_callable=AsyncMock) as mock_sol,
     ):
-        # 800 tokens × $0.01 = $8 < $10
+        # 800 tokens x $0.01 = $8 < $10
         mock_bal.return_value = 800_000_000_000_000_000_000  # 800 tokens at 18 dec
         mock_dec.return_value = 18
         mock_price.return_value = Decimal("0.01")
