@@ -145,6 +145,8 @@ async def _process_request(
                 expected_value_wei=req.amount_wei,
                 blocks_to_scan=500,  # Base: 2s/block → ~16min window; was 15 (30s) which missed slow users
                 tolerance_wei=10_000_000,  # suffix range = 10^7; wallets round to base, diff ≤ max_suffix
+                min_block=req.created_block
+                or 0,  # freshness gate: only accept txs mined after request was issued
             )
         except Exception as e:
             bind.warning("dust_scan_failed", err=repr(e))

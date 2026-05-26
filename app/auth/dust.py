@@ -21,8 +21,10 @@ import hashlib
 import secrets
 from typing import Any, cast
 
+import httpx
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from app.chains.evm import get_block_number
 from app.logging_conf import get_logger
 from app.models import DustRequest, DustRequestStatus
 from app.settings import settings
@@ -60,9 +62,24 @@ async def issue_dust_request(
     """Mint a fresh DustRequest, upsert into Mongo, return it. If a
     pending request already exists for the (user, chat) pair, the new
     one replaces it — the user re-running /verify means they're starting
-    over."""
+    over.
+
+    The current block number is fetched and stored as `created_block` so
+    the dust watcher can enforce tx freshness — only txs mined at or after
+    this block will satisfy the request. If the RPC call fails we fall back
+    to None (no freshness gate on legacy/degraded paths).
+    """
     nonce = make_nonce()
     amount = derive_amount_wei(tg_user_id=tg_user_id, chat_id=chat_id, nonce=nonce)
+
+    # Fetch the current chain tip so we can gate on tx freshness in the watcher.
+    created_block: int | None = None
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as http:
+            created_block = await get_block_number(http, chain_id)
+    except Exception as exc:
+        log.warning("dust_created_block_fetch_failed", chain_id=chain_id, err=repr(exc))
+
     req = DustRequest.make(
         tg_user_id=tg_user_id,
         chat_id=chat_id,
@@ -70,6 +87,7 @@ async def issue_dust_request(
         chain_id=chain_id,
         amount_wei=amount,
         ttl_seconds=settings.dust_request_ttl_seconds,
+        created_block=created_block,
     )
     await cast(Any, db.dust_requests).replace_one(
         {"_id": req.id},
@@ -83,6 +101,7 @@ async def issue_dust_request(
         address=req.address,
         chain_id=chain_id,
         amount_wei=amount,
+        created_block=created_block,
     )
     return req
 

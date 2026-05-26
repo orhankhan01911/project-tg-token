@@ -48,6 +48,10 @@ class DustRequest(BaseModel):
     detected_at: datetime | None = None
     confirmations: int = 0
     created_at: datetime = Field(default_factory=_now)
+    # Block number at the time the request was issued. Used by the watcher to
+    # enforce tx freshness: only txs mined at or after this block are eligible.
+    # None on legacy rows (pre-patch) — watcher falls back to no freshness gate.
+    created_block: int | None = None
 
     @staticmethod
     def make_id(tg_user_id: int, chat_id: int) -> str:
@@ -62,6 +66,7 @@ class DustRequest(BaseModel):
         chain_id: int,
         amount_wei: int,
         ttl_seconds: int,
+        created_block: int | None = None,
     ) -> DustRequest:
         now = _now()
         return DustRequest(
@@ -73,4 +78,5 @@ class DustRequest(BaseModel):
             amount_wei=amount_wei,
             expires_at=now + timedelta(seconds=ttl_seconds),
             created_at=now,
+            created_block=created_block,
         )

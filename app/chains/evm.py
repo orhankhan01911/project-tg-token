@@ -211,6 +211,7 @@ async def find_self_transfer(
     expected_value_wei: int,
     blocks_to_scan: int = 15,
     tolerance_wei: int = 0,
+    min_block: int = 0,
 ) -> TxRecord | None:
     """Scan the last `blocks_to_scan` blocks for a tx where
     `from == to == address` and `value ≈ expected_value_wei`.
@@ -220,6 +221,12 @@ async def find_self_transfer(
     that cap ETH input at 8 decimal places and round away the per-user suffix
     — the user sends the base amount, which is within the suffix range of the
     stored amount. Default (0) = exact match.
+
+    `min_block` is a freshness gate: any tx with block_number < min_block is
+    skipped. Set this to the block number at the time the dust request was
+    created so that a pre-existing self-transfer of the same amount (made for
+    an unrelated reason before the user ran /verify) cannot satisfy the check.
+    Default (0) = no freshness gate, i.e. any block in the scan window matches.
 
     Why scan-from-tip vs cursor: missed polls self-heal. If we cached
     "last seen block" and the watcher process restarted between blocks,
@@ -232,6 +239,10 @@ async def find_self_transfer(
 
     best: TxRecord | None = None
     for bn in range(head, start - 1, -1):
+        if bn < min_block:
+            # Everything from here downward is before the request was created;
+            # skip the remaining blocks entirely.
+            break
         try:
             txs = await get_block_with_txs(http, chain_id, bn)
         except RpcError as e:
@@ -243,6 +254,7 @@ async def find_self_transfer(
                 and tx.from_address == addr
                 and tx.to_address == addr
                 and abs(tx.value_wei - expected_value_wei) <= tolerance_wei
+                and tx.block_number >= min_block
             ):
                 # Latest match wins (highest block).
                 if best is None or tx.block_number > best.block_number:
