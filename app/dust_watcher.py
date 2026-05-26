@@ -32,7 +32,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from app.balance_gate import evaluate_token_gate, load_token_gate
+from app.balance_gate import evaluate_token_gate, format_gate_decline, load_token_gate
 from app.chains.evm import (
     confirmations_for,
     find_self_transfer,
@@ -306,11 +306,7 @@ async def _process_request(
                 await _send_dm(
                     bot,
                     tg_user_id=req.tg_user_id,
-                    text=(
-                        "✅ Wallet verified, but...\n\n"
-                        f"<code>{req.address}</code> doesn't hold $10+ of any required token.\n"
-                        "Top up your wallet and try joining again — your wallet stays linked."
-                    ),
+                    text=format_gate_decline(token_gate, verified_address=req.address),
                 )
                 bind.info("dust_verified_token_gate_failed", address=req.address)
                 return
@@ -453,11 +449,7 @@ async def _process_request(
                 await _send_dm(
                     bot,
                     tg_user_id=req.tg_user_id,
-                    text=(
-                        "✅ Wallet verified, but...\n\n"
-                        f"<code>{req.address}</code> doesn't hold $10+ of any required token.\n"
-                        "Top up your wallet and try joining again — your wallet stays linked."
-                    ),
+                    text=format_gate_decline(token_gate, verified_address=req.address),
                 )
                 bind.info("dust_verified_token_gate_failed", address=req.address)
                 return

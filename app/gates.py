@@ -19,7 +19,7 @@ from typing import Any, cast
 import httpx
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.balance_gate import evaluate_token_gate, load_token_gate
+from app.balance_gate import evaluate_token_gate, format_gate_decline, load_token_gate
 from app.chains.evm import chain_id_for, erc20_balance_of, eth_balance_of
 from app.logging_conf import get_logger
 from app.settings import settings
@@ -154,13 +154,10 @@ async def evaluate(
         if passed:
             return Approve(reason="token_balance_gate_passed")
 
+        any_address = next(iter(addresses.values()), None)
         return Decline(
             reason="insufficient_token_balance",
-            message=(
-                "❌ <b>Insufficient token balance.</b>\n\n"
-                "You need to hold at least $10 of one of the required tokens. "
-                "Run /verify first to link your wallet, then try joining again."
-            ),
+            message=format_gate_decline(token_gate, verified_address=any_address),
         )
 
     # ── AND-logic gate (legacy EVM threshold gates) ───────────────────────────

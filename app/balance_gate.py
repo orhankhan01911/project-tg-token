@@ -158,3 +158,45 @@ async def load_token_gate(db: Any, *, chat_id: int) -> TokenGate | None:
     if raw is None:
         return None
     return TokenGate.model_validate(raw)
+
+
+# Human-readable wallet hint per chain value
+_CHAIN_WALLET: dict[str, str] = {
+    "eth": "Ethereum wallet (MetaMask / OKX)",
+    "base": "Base wallet (MetaMask / OKX)",
+    "base-sepolia": "Base wallet (MetaMask / OKX)",
+    "ton": "TON wallet (Tonkeeper / OKX)",
+    "solana": "Solana wallet (Phantom / OKX)",
+}
+
+
+def format_gate_decline(gate: TokenGate, *, verified_address: str | None = None) -> str:
+    """Build a clear token gate decline message listing each required token and its network.
+
+    Shown to users after /verify succeeds but the balance check fails, so they
+    know exactly which wallet type and token they need.
+    """
+    if verified_address:
+        short = (
+            verified_address[:8] + "..." + verified_address[-4:]
+            if len(verified_address) > 14
+            else verified_address
+        )
+        intro = f"<code>{short}</code> doesn't hold $10+ of any required token."
+    else:
+        intro = "Your wallet doesn't hold $10+ of any required token."
+
+    token_lines = []
+    for spec in gate.tokens:
+        chain_val = spec.chain.value
+        wallet_hint = _CHAIN_WALLET.get(chain_val, chain_val)
+        token_lines.append(f"• <b>{spec.name}</b> — {wallet_hint}")
+
+    token_list = "\n".join(token_lines)
+    return (
+        "✅ Wallet verified, but...\n\n"
+        f"{intro}\n\n"
+        f"Required tokens (hold <b>any one ≥ $10</b>):\n"
+        f"{token_list}\n\n"
+        "Verify a wallet that holds one of these, then click the invite link again."
+    )

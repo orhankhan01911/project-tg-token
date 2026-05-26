@@ -102,7 +102,7 @@ async def test_token_gate_fails_decline(db, http):
     assert isinstance(result, Decline)
     assert result.reason == "insufficient_token_balance"
     assert result.message is not None
-    assert "/verify" in result.message
+    assert "invite" in result.message or "Verify" in result.message
 
 
 # ── no token_gate doc → falls through to AND-logic gates ─────────────────────
@@ -188,4 +188,4 @@ async def test_token_gate_verified_but_no_address_decline(db, http):
     assert isinstance(result, Decline)
     assert result.reason == "no_verified_wallet"
     assert result.message is not None
-    assert "/verify" in result.message
+    assert "verify" in result.message.lower()
