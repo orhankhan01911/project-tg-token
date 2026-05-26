@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TG Token Gates — System Architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #070604; --surface: #0d0b08; --surface2: #141008;
+  --border: #1e1a10; --text: #e8d5a3; --muted: #7a6a4a;
+  --amber: #ffd66e; --amber-dim: #c4971e;
+
+  --c-telegram:  #33aadd;
+  --c-bot:       #ffd66e;
+  --c-gate:      #4aae8a;
+  --c-auth:      #e87a3a;
+  --c-chain:     #b04ae8;
+  --c-storage:   #4a7ae8;
+  --c-ext:       #7a8a9a;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background:var(--bg); color:var(--text);
+  font-family:'IBM Plex Mono',monospace;
+  height:100vh; display:flex; flex-direction:column; overflow:hidden;
+}
+
+/* ── HEADER ── */
+.hdr { display:flex; align-items:center; justify-content:space-between; padding:12px 24px; border-bottom:1px solid var(--border); background:var(--surface); flex-shrink:0; }
+.hdr-logo { width:30px; height:30px; border:1px solid var(--amber-dim); border-radius:3px; display:flex; align-items:center; justify-content:center; color:var(--amber); margin-right:12px; }
+.hdr-title { font-family:'Syne',sans-serif; font-size:13px; font-weight:800; color:var(--amber); letter-spacing:.15em; text-transform:uppercase; }
+.hdr-sub { font-size:9px; color:var(--muted); margin-top:2px; }
+.live-dot { width:7px; height:7px; border-radius:50%; background:#4aae8a; box-shadow:0 0 8px #4aae8a; animation:blink 2s ease-in-out infinite; margin-right:6px; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
+.badge { font-size:9px; color:var(--muted); display:flex; align-items:center; }
+
+/* ── LEGEND ── */
+.legend-bar { display:flex; gap:16px; align-items:center; padding:6px 24px; background:var(--surface); border-bottom:1px solid var(--border); flex-shrink:0; flex-wrap:wrap; }
+.leg { display:flex; align-items:center; gap:5px; font-size:9px; color:var(--muted); }
+.leg-line { width:22px; height:2px; flex-shrink:0; }
+.leg-dot  { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+
+/* ── MAIN ── */
+.main { flex:1; overflow:auto; padding:20px 24px 0; }
+.diagram-wrap { position:relative; min-width:1120px; padding-bottom:84px; }
+
+/* ── LAYERS ── */
+.layers { display:grid; grid-template-columns:repeat(6,1fr); gap:18px; align-items:start; }
+.layer { display:flex; flex-direction:column; gap:8px; opacity:0; transform:translateY(8px); animation:fadeUp .45s ease forwards; }
+@keyframes fadeUp { to{opacity:1;transform:translateY(0)} }
+.layer:nth-child(1){animation-delay:.00s} .layer:nth-child(2){animation-delay:.10s}
+.layer:nth-child(3){animation-delay:.20s} .layer:nth-child(4){animation-delay:.30s}
+.layer:nth-child(5){animation-delay:.40s} .layer:nth-child(6){animation-delay:.50s}
+
+.layer-hdr { padding-bottom:7px; border-bottom-width:2px; border-bottom-style:solid; margin-bottom:2px; }
+.layer-name { font-family:'Syne',sans-serif; font-size:10px; font-weight:800; letter-spacing:.16em; text-transform:uppercase; }
+.layer-sub { font-size:8px; color:var(--muted); margin-top:2px; }
+
+/* ── NODES ── */
+.node { background:var(--surface); border:1px solid var(--border); border-radius:5px; padding:9px 11px; cursor:pointer; transition:border-color .15s,background .15s,transform .15s; position:relative; }
+.node:hover { background:var(--surface2); transform:translateX(2px); }
+.node.selected { border-color:var(--amber)!important; background:var(--surface2); }
+.node-icon { width:26px; height:26px; margin-bottom:5px; }
+.node-icon svg { width:100%; height:100%; }
+.node-name { font-size:11px; font-weight:600; color:var(--text); line-height:1.3; }
+.node-sub { font-size:9px; color:var(--muted); margin-top:2px; line-height:1.4; }
+.nbadge { position:absolute; top:6px; right:7px; font-size:8px; padding:1px 5px; border-radius:2px; font-weight:600; }
+.bpoll  { background:rgba(255,214,110,.12); color:#ffd66e; border:1px solid rgba(255,214,110,.3); }
+.btodo  { background:rgba(122,130,154,.12); color:#7a8a9a; border:1px solid rgba(122,130,154,.3); }
+.bbot   { background:rgba(51,170,221,.12);  color:#33aadd; border:1px solid rgba(51,170,221,.3); }
+.bhook  { background:rgba(74,174,138,.12);  color:#4aae8a; border:1px solid rgba(74,174,138,.3); }
+
+/* ── SVG CONNECTIONS ── */
+#conn-svg { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; overflow:visible; }
+
+/* path classes */
+.ctg    { fill:none; stroke:#33aadd; stroke-width:1.5; opacity:.50; }
+.cbot   { fill:none; stroke:#ffd66e; stroke-width:1.5; opacity:.45; }
+.cgate  { fill:none; stroke:#4aae8a; stroke-width:1.5; opacity:.45; }
+.cauth  { fill:none; stroke:#e87a3a; stroke-width:1.5; opacity:.40; stroke-dasharray:5 4; }
+.cchain { fill:none; stroke:#b04ae8; stroke-width:1.5; opacity:.40; stroke-dasharray:4 3; }
+.cdb    { fill:none; stroke:#4a7ae8; stroke-width:1.5; opacity:.40; stroke-dasharray:3 2; }
+.cwrite { fill:none; stroke:#4aae8a; stroke-width:1.5; opacity:.40; stroke-dasharray:5 4; }
+
+/* dot classes */
+.ptg    { fill:#33aadd; filter:drop-shadow(0 0 3px #33aadd); }
+.pbot   { fill:#ffd66e; filter:drop-shadow(0 0 3px #ffd66e); }
+.pgate  { fill:#4aae8a; filter:drop-shadow(0 0 2px #4aae8a); }
+.pauth  { fill:#e87a3a; filter:drop-shadow(0 0 2px #e87a3a); }
+.pchain { fill:#b04ae8; filter:drop-shadow(0 0 2px #b04ae8); }
+.pdb    { fill:#4a7ae8; }
+.pwrite { fill:#4aae8a; }
+
+/* ── EXTERNAL BAR ── */
+.ext-bar { position:absolute; bottom:0; left:0; right:0; height:68px; border-top:1px solid var(--border); background:var(--surface); display:flex; align-items:center; gap:10px; padding:0 16px; opacity:0; animation:fadeUp .4s .6s ease forwards; }
+.ext-lbl { font-size:9px; color:var(--muted); letter-spacing:.1em; text-transform:uppercase; white-space:nowrap; margin-right:4px; }
+.ext-node { display:flex; align-items:center; gap:7px; background:var(--bg); border:1px solid var(--border); border-radius:4px; padding:6px 10px; cursor:pointer; transition:border-color .15s; }
+.ext-node:hover { border-color:var(--muted); }
+.ext-icon { width:16px; height:16px; flex-shrink:0; }
+.ext-icon svg { width:100%; height:100%; }
+.ext-name { font-size:10px; color:var(--muted); }
+.ext-warn { font-size:8px; color:#e87a3a; border:1px solid rgba(232,122,58,.3); border-radius:2px; padding:0 4px; margin-left:4px; }
+
+/* ── DETAIL PANEL ── */
+.detail { position:fixed; top:0; right:0; width:320px; height:100vh; background:var(--surface); border-left:1px solid var(--border); transform:translateX(320px); transition:transform .25s cubic-bezier(.4,0,.2,1); z-index:100; display:flex; flex-direction:column; }
+.detail.open { transform:translateX(0); }
+.dp-hdr { padding:14px 16px; border-bottom:1px solid var(--border); display:flex; align-items:flex-start; justify-content:space-between; flex-shrink:0; }
+.dp-title { font-family:'Syne',sans-serif; font-size:13px; font-weight:800; color:var(--amber); }
+.dp-type { font-size:9px; color:var(--muted); margin-top:3px; letter-spacing:.1em; text-transform:uppercase; }
+.dp-close { background:none; border:none; color:var(--muted); cursor:pointer; font-size:16px; padding:2px 4px; transition:color .15s; }
+.dp-close:hover { color:var(--text); }
+.dp-body { flex:1; overflow-y:auto; padding:14px 16px; }
+.dp-section { margin-bottom:18px; }
+.dp-sec-title { font-size:9px; color:var(--muted); letter-spacing:.12em; text-transform:uppercase; padding-bottom:5px; border-bottom:1px solid var(--border); margin-bottom:8px; }
+.dp-kv { display:flex; gap:8px; margin-bottom:5px; font-size:10px; line-height:1.5; }
+.dp-k { color:var(--muted); width:88px; flex-shrink:0; }
+.dp-v { color:var(--text); }
+.dp-tag { display:inline-block; background:rgba(255,214,110,.08); border:1px solid rgba(255,214,110,.2); border-radius:2px; padding:1px 6px; font-size:9px; color:var(--amber-dim); margin:2px 2px 0 0; }
+.dp-note { font-size:10px; color:var(--muted); line-height:1.6; border-left:2px solid var(--border); padding-left:9px; margin-top:8px; white-space:pre-line; }
+.dp-note.warn { border-color:#e87a3a; color:#e87a3a; }
+.dp-note.good { border-color:#4aae8a; color:#6dcfb8; }
+
+/* ── FLOW CALLOUT ── */
+.flow-strip { display:flex; align-items:center; gap:0; padding:7px 24px; background:#0a0805; border-bottom:1px solid var(--border); flex-shrink:0; overflow-x:auto; }
+.flow-step { display:flex; align-items:center; gap:0; }
+.flow-pill { font-size:9px; padding:3px 9px; border-radius:3px; white-space:nowrap; font-weight:600; letter-spacing:.05em; }
+.flow-arr { font-size:11px; color:var(--muted); padding:0 6px; }
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div style="display:flex;align-items:center">
+    <div class="hdr-logo">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    </div>
+    <div>
+      <div class="hdr-title">TG Token Gates — System Architecture</div>
+      <div class="hdr-sub">aiogram 3 · MongoDB · Redis · Alchemy · Dust Self-Transfer · Click nodes for details</div>
+    </div>
+  </div>
+  <div class="badge"><div class="live-dot"></div>v2 · Dust Path</div>
+</div>
+
+<!-- happy path flow strip -->
+<div class="flow-strip">
+  <span style="font-size:9px;color:var(--muted);margin-right:10px;letter-spacing:.1em;text-transform:uppercase">Happy path →</span>
+  <div class="flow-step">
+    <span class="flow-pill" style="background:rgba(51,170,221,.15);color:#33aadd;border:1px solid rgba(51,170,221,.3)">User requests join</span>
+    <span class="flow-arr">→</span>
+    <span class="flow-pill" style="background:rgba(255,214,110,.1);color:#ffd66e;border:1px solid rgba(255,214,110,.2)">chat_join_request</span>
+    <span class="flow-arr">→</span>
+    <span class="flow-pill" style="background:rgba(74,174,138,.12);color:#4aae8a;border:1px solid rgba(74,174,138,.3)">evaluate()</span>
+    <span class="flow-arr">→</span>
+    <span class="flow-pill" style="background:rgba(232,122,58,.12);color:#e87a3a;border:1px solid rgba(232,122,58,.3)">/verify 0xAddr</span>
+    <span class="flow-arr">→</span>
+    <span class="flow-pill" style="background:rgba(232,122,58,.12);color:#e87a3a;border:1px solid rgba(232,122,58,.3)">DustRequest → Mongo</span>
+    <span class="flow-arr">→</span>
+    <span class="flow-pill" style="background:rgba(176,74,232,.12);color:#b04ae8;border:1px solid rgba(176,74,232,.3)">self-transfer on chain</span>
+    <span class="flow-arr">→</span>
+    <span class="flow-pill" style="background:rgba(176,74,232,.12);color:#b04ae8;border:1px solid rgba(176,74,232,.3)">watcher detects (30s)</span>
+    <span class="flow-arr">→</span>
+    <span class="flow-pill" style="background:rgba(74,174,138,.15);color:#4aae8a;border:1px solid rgba(74,174,138,.4)">✓ approve_join</span>
+  </div>
+</div>
+
+<div class="legend-bar">
+  <div class="leg"><div class="leg-line" style="background:#33aadd"></div>Telegram API</div>
+  <div class="leg"><div class="leg-line" style="background:#ffd66e"></div>Bot Events</div>
+  <div class="leg"><div class="leg-line" style="background:#4aae8a"></div>Gate / Approve</div>
+  <div class="leg"><div class="leg-line" style="background:#e87a3a;background:repeating-linear-gradient(90deg,#e87a3a 0,#e87a3a 5px,transparent 5px,transparent 9px)"></div>Auth / Dust</div>
+  <div class="leg"><div class="leg-line" style="background:#b04ae8;background:repeating-linear-gradient(90deg,#b04ae8 0,#b04ae8 4px,transparent 4px,transparent 7px)"></div>Chain RPC</div>
+  <div class="leg"><div class="leg-line" style="background:#4a7ae8;background:repeating-linear-gradient(90deg,#4a7ae8 0,#4a7ae8 3px,transparent 3px,transparent 6px)"></div>DB Read/Write</div>
+  <div class="leg"><div class="leg-dot" style="background:#33aadd"></div>Telegram</div>
+  <div class="leg"><div class="leg-dot" style="background:#ffd66e"></div>Bot Worker</div>
+  <div class="leg"><div class="leg-dot" style="background:#4aae8a"></div>Gate Engine</div>
+  <div class="leg"><div class="leg-dot" style="background:#e87a3a"></div>Auth + Watcher</div>
+  <div class="leg"><div class="leg-dot" style="background:#b04ae8"></div>Chain / RPC</div>
+  <div class="leg"><div class="leg-dot" style="background:#4a7ae8"></div>Storage</div>
+</div>
+
+<div class="main" id="main">
+  <div class="diagram-wrap" id="dw">
+    <div class="layers" id="layers"></div>
+    <svg id="conn-svg"></svg>
+    <div class="ext-bar" id="ext-bar"></div>
+  </div>
+</div>
+
+<div class="detail" id="detail">
+  <div class="dp-hdr">
+    <div><div class="dp-title" id="dp-title"></div><div class="dp-type" id="dp-type"></div></div>
+    <button class="dp-close" onclick="closePanel()">✕</button>
+  </div>
+  <div class="dp-body" id="dp-body"></div>
+</div>
+
+<script>
+const I = {
+  shield:  `<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="currentColor" stroke-width="1.5" fill="none"/>`,
+  bot:     `<rect x="3" y="11" width="18" height="10" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="12" cy="7" r="4" stroke="currentColor" stroke-width="1.5" fill="none"/><line x1="8" y1="16" x2="8" y2="16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="12" y1="16" x2="12" y2="16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="16" y1="16" x2="16" y2="16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>`,
+  user:    `<path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="12" cy="7" r="4" stroke="currentColor" stroke-width="1.5" fill="none"/>`,
+  msg:     `<path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="currentColor" stroke-width="1.5" fill="none"/>`,
+  zap:     `<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/>`,
+  gate:    `<rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M9 9h6M9 12h6M9 15h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/>`,
+  check:   `<polyline points="20 6 9 17 4 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/>`,
+  clock:   `<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5" fill="none"/><polyline points="12 6 12 12 16 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/>`,
+  chain:   `<path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/>`,
+  db:      `<ellipse cx="12" cy="5" rx="9" ry="3" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" stroke="currentColor" stroke-width="1.5" fill="none"/>`,
+  cache:   `<rect x="2" y="3" width="20" height="14" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M8 21h8M12 17v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/>`,
+  lock:    `<rect x="3" y="11" width="18" height="11" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M7 11V7a5 5 0 0110 0v4" stroke="currentColor" stroke-width="1.5" fill="none"/>`,
+  eye:     `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5" fill="none"/>`,
+  coin:    `<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M12 6v6l4 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/>`,
+  server:  `<rect x="2" y="2" width="20" height="8" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/><rect x="2" y="14" width="20" height="8" rx="2" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="6" cy="6" r="1" fill="currentColor"/><circle cx="6" cy="18" r="1" fill="currentColor"/>`,
+  activity:`<polyline points="22 12 18 12 15 21 9 3 6 12 2 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/>`,
+  tool:    `<path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" stroke="currentColor" stroke-width="1.5" fill="none"/>`,
+  ci:      `<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1.5" fill="none"/><polyline points="12 8 12 12 14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/>`,
+};
+
+function svg(id, color) {
+  return `<svg viewBox="0 0 24 24" style="color:${color}">${I[id]}</svg>`;
+}
+
+const LAYERS = [
+  { id:'telegram', name:'TELEGRAM', sub:'External · Bot API', color:'#33aadd', nodes:[
+    { id:'tg-user', name:'Telegram User', icon:'user', c:'#33aadd', sub:'iOS / Android / Desktop',
+      detail:{ type:'External Actor', kv:[['Action','Request to join gated group'],['Trigger','Tap "Join" in Telegram'],['Receives','DM with /verify instructions'],['Receives','Approval or decline notification']], tags:['chat_join_request'], note:'User never leaves Telegram.\nNo browser, no wallet SDK, no third-party redirect.\nEntire flow lives inside Telegram DMs.' } },
+    { id:'tg-botapi', name:'Telegram Bot API', icon:'server', c:'#33aadd', sub:'api.telegram.org · long-poll',
+      detail:{ type:'Telegram Infrastructure', kv:[['Polling','getUpdates long-poll'],['Rate','30 req/s global · 20/min per chat'],['Webhooks','Not used (long-poll for v0)'],['Host','api.telegram.org (ISP direct, no proxy)']], tags:['long-poll','aiogram 3'], note:'Rate limits matter at purge scale:\n30 msg/s global, 20 msg/min per chat.\nCurrent watcher DMs on approve — 1 DM per verify event, well within limits.' } },
+    { id:'tg-group', name:'Gated Group', icon:'lock', c:'#33aadd', sub:'supergroup · join approval on',
+      detail:{ type:'Telegram Group', kv:[['Type','Supergroup with join-approval enabled'],['Bot role','Administrator (approve/decline)'],['Setting','join by approval → required for chat_join_request events']], tags:['requires admin bot'], note:'Bot must be admin with "Approve new members" permission.\nWithout this, Telegram sends no chat_join_request events — silent failure.' } },
+  ]},
+
+  { id:'botworker', name:'BOT WORKER', sub:'aiogram 3 · Python 3.12', color:'#ffd66e', nodes:[
+    { id:'bot-joinhandler', name:'join_request handler', icon:'zap', c:'#ffd66e', sub:'chat_join_request update · tenacity retry',
+      detail:{ type:'aiogram Update Handler', kv:[['File','app/bot.py'],['Update','ChatJoinRequest'],['Retry','tenacity: 5 attempts, exp backoff 0.5–8s'],['On TelegramNetworkError','retry'],['On BotBlocked','skip']], tags:['@router.chat_join_request'], note:'First point of contact for every new member.\nCalls evaluate() → routes to approve / decline / needs_verify.\nRetry wraps the approve/decline Telegram API calls only — not the gate logic.' } },
+    { id:'bot-verify', name:'/verify command', icon:'check', c:'#ffd66e', sub:'/verify 0xAddr · creates DustRequest', badge:'CMD', bc:'bbot',
+      detail:{ type:'Command Handler', kv:[['Command','/verify <0xAddress>'],['Validation','EVM address regex (0x + 40 hex chars)'],['Creates','DustRequest in MongoDB'],['Derives','unique wei amount (SHA256-based)'],['Replies','exact ETH + chain + instructions']], tags:['app/bot.py'], note:'Amount derivation:\nsha256(tg_user_id || chat_id || nonce)[:8] mod 10^7\n+ base dust (10,000,000,000 wei)\n= unique per user+chat+nonce.\n\nReissuing replaces prior PENDING request for same user+chat.' } },
+    { id:'bot-cancel', name:'/cancel command', icon:'msg', c:'#ffd66e', sub:'/cancel · marks PENDING→CANCELLED',
+      detail:{ type:'Command Handler', kv:[['Command','/cancel'],['Effect','Marks pending DustRequest → CANCELLED'],['Use case','User wants to change wallet address']], tags:['app/bot.py'] } },
+  ]},
+
+  { id:'gateengine', name:'GATE ENGINE', sub:'evaluate() · priority chain', color:'#4aae8a', nodes:[
+    { id:'gate-eval', name:'evaluate()', icon:'gate', c:'#4aae8a', sub:'5-step priority chain · Decision enum',
+      detail:{ type:'Core Gate Logic', kv:[['File','app/gates.py'],['Returns','Approve | Decline | NeedsVerify'],['Step 1','Chat not registered → Decline'],['Step 2','Chat owner (OWNER_TG_IDS) → Approve'],['Step 3','Whitelist hit → Approve'],['Step 4','Fresh verification within TTL → Approve'],['Step 5','Else → NeedsVerify']], tags:['app/gates.py'], note:'TTL check (Step 4): verification.verified_at must be < 86400s ago.\nWhitelist is chat-scoped — same user in different chat = different entry.\nStep 1 ensures unregistered chats always decline (no open gates).' } },
+    { id:'gate-wl', name:'Whitelist', icon:'eye', c:'#4aae8a', sub:'chat-scoped · tg_user_id keyed', badge:'DB', bc:'bhook',
+      detail:{ type:'Whitelist Store', kv:[['Model','WhitelistEntry (tg_user_id + chat_id)'],['Scope','Per-chat — same user in 2 chats = 2 entries'],['Key','tg_user_id (not @username)'],['Unique','composite index: chat_id + tg_user_id']], tags:['app/models/whitelist.py'], note:'Keyed by tg_user_id, not @username.\nThis is the fix for G6 in RE_ANALYSIS — username-keyed whitelist breaks on username change.' } },
+    { id:'gate-verif', name:'Verification TTL', icon:'clock', c:'#4aae8a', sub:'86400s TTL · written on approve',
+      detail:{ type:'Verification Record', kv:[['Model','Verification'],['Fields','tg_user_id, chat_id, address, chain, method, sig_or_txhash, verified_at'],['TTL','86400s (24h) — must re-verify after'],['Method','dust (current) | siwe | siws | ton_proof (future)'],['Unique','composite: chain + address (sybil guard)']], tags:['app/models/verification.py'], note:'One active wallet binding per address per chain.\nTwo users sharing the same wallet → second link rejected.\nPartial sybil mitigation (G9 gap).' } },
+  ]},
+
+  { id:'auth', name:'AUTH + WATCHER', sub:'dust.py · dust_watcher.py', color:'#e87a3a', nodes:[
+    { id:'auth-dust', name:'Dust Auth', icon:'coin', c:'#e87a3a', sub:'derive_amount_wei · issue_dust_request',
+      detail:{ type:'Auth Module', kv:[['File','app/auth/dust.py'],['Amount','SHA256(user_id+chat_id+nonce)[:8] mod 10^7 + 10^10 wei'],['Nonce','Redis-issued one-shot (Lua atomic)'],['TTL','3600s (1h) per DustRequest'],['Precision','full-precision ETH string e.g. 0.000010001234 ETH']], tags:['deterministic','tamper-evident'], note:'Why dust, not SIWE:\n- No browser required\n- No wallet SDK (no WalletConnect friction)\n- Works with any EVM wallet including cold storage\n- User pays ~$0.001 in gas (Base) as proof-of-custody\n\nTrade-off: smart-contract wallets without EOA can\'t self-transfer.' } },
+    { id:'watcher', name:'Dust Watcher', icon:'clock', c:'#e87a3a', sub:'30s poll · 5 confirmations · asyncio', badge:'POLL', bc:'bpoll',
+      detail:{ type:'Background Task', kv:[['File','app/dust_watcher.py'],['Cadence','Every 30s (asyncio loop)'],['Query','All PENDING DustRequests where expires_at > now'],['Scan','Last 15 blocks for self-transfer match'],['Confirm','≥5 block confirmations'],['On match','Write Verification, approve_join, DM user'],['Reorg','Reverts to PENDING if confirmations drop']], tags:['asyncio','reorg-safe'], note:'State machine:\nPENDING → DETECTED (transfer found, counting confirms)\nDETECTED → APPROVED (≥5 confirms → write Verification + approve)\nPENDING/DETECTED → EXPIRED (expires_at passed)\nPENDING → CANCELLED (/cancel command)\n\nReorg safety: if confirmations drop below 5, reverts to PENDING and rescans.' } },
+  ]},
+
+  { id:'chain', name:'CHAIN / RPC', sub:'EVM reader · Alchemy + public', color:'#b04ae8', nodes:[
+    { id:'chain-reader', name:'EVM Chain Reader', icon:'chain', c:'#b04ae8', sub:'get_block · find_self_transfer',
+      detail:{ type:'Chain Module', kv:[['File','app/chains/evm.py'],['Chains','Base Sepolia, Base, ETH, Sepolia'],['Method','eth_getBlockByNumber (full=true)'],['Scan','Last 15 blocks, all txns, from==to==address'],['Alchemy','Priority if ALCHEMY_API_KEY set'],['Fallback','Public RPC (rate-limited)'],['Confirms','current_head - tx_block + 1']], tags:['app/chains/evm.py'], note:'find_self_transfer(): walks last N blocks via eth_getBlockByNumber with full=true, checks from==to==address AND value==expected_wei.\n\nConfirmations are re-counted on each watcher cycle — catches reorgs.' } },
+    { id:'chain-base', name:'Base (Chain 8453)', icon:'zap', c:'#b04ae8', sub:'default · mainnet · Alchemy',
+      detail:{ type:'Target Chain', kv:[['Chain ID','8453'],['Name','Base Mainnet'],['RPC via Alchemy','base-mainnet.g.alchemy.com/v2/KEY'],['Gas','~$0.001 per self-transfer'],['Status','Primary production chain']], tags:['Alchemy', 'mainnet'], note:'Base is the default chain (dust_chain_id=8453 in settings).\nLow gas makes the self-transfer cost negligible for users.' } },
+    { id:'chain-sepolia', name:'Base Sepolia (84532)', icon:'activity', c:'#b04ae8', sub:'testnet · free RPC', badge:'DEV', bc:'btodo',
+      detail:{ type:'Test Chain', kv:[['Chain ID','84532'],['Name','Base Sepolia (testnet)'],['RPC','public free tier'],['Status','Current dev default (dust_chain_id=84532)']], tags:['testnet'], note:'Currently the active dev chain (settings default is 84532).\n\nTo switch to Base mainnet production: set dust_chain_id=8453 in .env.' } },
+    { id:'chain-alchemy', name:'Alchemy RPC', icon:'server', c:'#b04ae8', sub:'uw07GvAyi4A · all chains confirmed',
+      detail:{ type:'RPC Provider', kv:[['Key','uw07GvAyi4A__kC4M9S2O'],['ETH mainnet','✅ confirmed'],['ETH Sepolia','✅ confirmed'],['Base mainnet','✅ confirmed'],['Base Sepolia','✅ confirmed'],['Solana mainnet','✅ confirmed (future use)'],['Beacon chain','✅ available (staking gates, not used)'],['URL pattern','{chain}.g.alchemy.com/v2/{KEY}'],['Fallback','Public RPC when key missing']], tags:['paid tier','all chains wired'], note:'All 4 EVM chains confirmed with same API key.\nSolana mainnet also available via Alchemy when SPL reader is built — Helius remains primary for Solana.' } },
+  ]},
+
+  { id:'storage', name:'STORAGE', sub:'MongoDB · Redis · Motor', color:'#4a7ae8', nodes:[
+    { id:'mongo', name:'MongoDB (local)', icon:'db', c:'#4a7ae8', sub:'Motor async · 5 collections',
+      detail:{ type:'Primary Database', kv:[['Driver','Motor 3.6 (async)'],['URI','mongodb://127.0.0.1:27017'],['DB','tg_token'],['Collections','chats, gates, dust_requests, verifications, whitelist, events']], tags:['local','not Atlas'], note:'Collections + indexes (ensure_indexes on startup):\n\nchats: _id=chat_id\ngates: chat_id (non-unique)\ndust_requests: (tg_user_id+chat_id) unique, status+expires_at\nverifications: (chain+address) unique — sybil guard\nevents: idem_key unique — idempotency\nwhitelist: (chat_id+tg_user_id) unique' } },
+    { id:'redis', name:'Redis (local)', icon:'cache', c:'#4a7ae8', sub:'Nonce store · Lua atomic',
+      detail:{ type:'Nonce Store', kv:[['URI','redis://127.0.0.1:6379/0'],['Use','One-shot nonce for dust requests'],['Atomicity','Lua script: compare-and-delete'],['Key','tg_token:nonce:{chat_id}:{user_id}'],['TTL','3600s (1h)']], tags:['lua','atomic'], note:'issue_nonce(): SET NX with TTL → only one pending nonce per (user, chat) at a time.\nconsume_nonce(): atomic Lua compare-and-delete — prevents replay.\n\nAlso used for SIWE nonce management (retained, even though SIWE path is removed).' } },
+  ]},
+];
+
+const EXT = [
+  { id:'alchemy', name:'Alchemy', icon:'server', c:'#b04ae8',
+    detail:{ type:'EVM + Solana RPC Provider', kv:[['Key','uw07GvAyi4A__kC4M9S2O'],['ETH mainnet','eth-mainnet.g.alchemy.com/v2/KEY'],['ETH Sepolia','eth-sepolia.g.alchemy.com/v2/KEY'],['Base mainnet','base-mainnet.g.alchemy.com/v2/KEY'],['Base Sepolia','base-sepolia.g.alchemy.com/v2/KEY'],['Solana mainnet','solana-mainnet.g.alchemy.com/v2/KEY (future)'],['Beacon chain','eth-mainnetbeacon (staking gates, not used)']], tags:['paid','wired','all chains confirmed'] } },
+  { id:'helius', name:'Helius', icon:'coin', c:'#7a8a9a', warn:true,
+    detail:{ type:'Solana RPC (FUTURE)', kv:[['Key','9cb0a2db-c739-40ed-86b1-fb8c4bf7699c'],['Use','SPL token balanceOf · Solana self-transfer detection'],['Alt','Alchemy solana-mainnet also available (same key)'],['Status','Key set, Solana reader not built yet']], tags:['TODO','Solana'], warn:true } },
+  { id:'github-ci', name:'GitHub CI', icon:'ci', c:'#7a8a9a',
+    detail:{ type:'CI Pipeline', kv:[['File','.github/workflows/test.yml'],['Steps','ruff check · pyright · pytest -m unit'],['Trigger','on: push, pull_request']], tags:['CI','automated'] } },
+  { id:'hooks', name:'Git Hooks', icon:'tool', c:'#4aae8a',
+    detail:{ type:'Local Quality Gates', kv:[['pre-commit','ruff format check · secret pattern scan · .env block'],['pre-push','ruff check · pyright · pytest -m unit'],['Path','.githooks/ (core.hooksPath set)']], tags:['pre-commit','pre-push'] } },
+  { id:'systemd', name:'systemd service', icon:'server', c:'#7a8a9a',
+    detail:{ type:'Process Supervisor', kv:[['File','infra/systemd/tg-token-bot.service'],['Type','simple'],['Restart','on-failure'],['Env','EnvironmentFile=.env'],['Boot','WantedBy=default.target']], tags:['user service','linger'] } },
+  { id:'docker', name:'Docker Compose', icon:'server', c:'#7a8a9a',
+    detail:{ type:'Local Infra', kv:[['File','infra/docker-compose.yml'],['Services','MongoDB 7 + Redis 7 Alpine'],['Ports','127.0.0.1 only'],['Healthchecks','Both services healthchecked']], tags:['make infra-up'] } },
+];
+
+// connections: f=from id, t=to id, tp=type (maps to CSS class c{tp}), sp=dot speed (s), dl=delay (s)
+const CONNS = [
+  // User → Bot API → Group
+  {f:'tg-user',   t:'tg-botapi',       tp:'tg',    sp:1.2, dl:0},
+  {f:'tg-botapi', t:'tg-group',        tp:'tg',    sp:1.4, dl:.3},
+
+  // Telegram Bot API → Bot Worker (polling)
+  {f:'tg-botapi', t:'bot-joinhandler', tp:'tg',    sp:1.0, dl:0},
+  {f:'tg-botapi', t:'bot-verify',      tp:'tg',    sp:1.2, dl:.4},
+  {f:'tg-botapi', t:'bot-cancel',      tp:'tg',    sp:1.6, dl:.8},
+
+  // Bot → Gate evaluate
+  {f:'bot-joinhandler', t:'gate-eval', tp:'bot',   sp:.8,  dl:0},
+
+  // Gate → Storage (read whitelist + verification)
+  {f:'gate-eval', t:'gate-wl',         tp:'gate',  sp:.6,  dl:0},
+  {f:'gate-eval', t:'gate-verif',      tp:'gate',  sp:.7,  dl:.2},
+  {f:'gate-wl',   t:'mongo',           tp:'db',    sp:.5,  dl:0},
+  {f:'gate-verif',t:'mongo',           tp:'db',    sp:.5,  dl:.3},
+
+  // Gate → Bot (approve/decline/DM)
+  {f:'gate-eval', t:'bot-joinhandler', tp:'gate',  sp:.9,  dl:.1},
+
+  // Bot → Auth (on NeedsVerify)
+  {f:'bot-verify', t:'auth-dust',      tp:'auth',  sp:.7,  dl:0},
+  {f:'auth-dust',  t:'redis',          tp:'db',    sp:.5,  dl:0},
+  {f:'auth-dust',  t:'mongo',          tp:'write', sp:.6,  dl:.2},
+
+  // Watcher → Chain Reader → Alchemy
+  {f:'watcher',       t:'chain-reader',  tp:'auth',  sp:.6,  dl:0},
+  {f:'chain-reader',  t:'chain-alchemy', tp:'chain', sp:.7,  dl:0},
+  {f:'chain-reader',  t:'chain-base',    tp:'chain', sp:.9,  dl:.3},
+  {f:'chain-reader',  t:'chain-sepolia', tp:'chain', sp:1.1, dl:.6},
+
+  // Watcher → MongoDB (read pending, write verifications)
+  {f:'watcher', t:'mongo',             tp:'db',    sp:.5,  dl:0},
+  {f:'watcher', t:'mongo',             tp:'write', sp:.5,  dl:.5},
+
+  // Watcher → Bot (trigger approve DM on success)
+  {f:'watcher', t:'bot-joinhandler',   tp:'gate',  sp:.8,  dl:.2},
+
+  // Bot Worker → Telegram Bot API (approve, DM)
+  {f:'bot-joinhandler', t:'tg-botapi', tp:'bot',   sp:1.0, dl:.3},
+  {f:'bot-cancel',      t:'mongo',     tp:'write', sp:.6,  dl:0},
+];
+
+// ── RENDER ──────────────────────────────────────────────────────────────────
+function renderLayers() {
+  const el = document.getElementById('layers');
+  el.innerHTML = LAYERS.map(layer => `
+    <div class="layer">
+      <div class="layer-hdr" style="border-color:${layer.color}">
+        <div class="layer-name" style="color:${layer.color}">${layer.name}</div>
+        <div class="layer-sub">${layer.sub}</div>
+      </div>
+      ${layer.nodes.map(n => `
+        <div class="node" data-id="${n.id}" onclick="showDetail('${n.id}')" title="${n.name}">
+          ${n.badge ? `<span class="nbadge ${n.bc}">${n.badge}</span>` : ''}
+          <div class="node-icon">${svg(n.icon, n.c)}</div>
+          <div class="node-name">${n.name}</div>
+          <div class="node-sub">${n.sub}</div>
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
+}
+
+function renderExt() {
+  const el = document.getElementById('ext-bar');
+  el.innerHTML = `<span class="ext-lbl">Infra / External</span>` +
+    EXT.map(e => `
+      <div class="ext-node" data-id="${e.id}" onclick="showDetail('${e.id}')">
+        <div class="ext-icon">${svg(e.icon, e.c)}</div>
+        <span class="ext-name">${e.name}</span>
+        ${e.warn ? '<span class="ext-warn">TODO</span>' : ''}
+      </div>
+    `).join('');
+}
+
+// ── CONNECTIONS ──────────────────────────────────────────────────────────────
+function drawConns() {
+  const svgEl = document.getElementById('conn-svg');
+  svgEl.innerHTML = '';
+  const wrap = document.getElementById('dw');
+  const wRect = wrap.getBoundingClientRect();
+  const main  = document.getElementById('main');
+
+  CONNS.forEach((c, i) => {
+    const fEl = document.querySelector(`[data-id="${c.f}"]`);
+    const tEl = document.querySelector(`[data-id="${c.t}"]`);
+    if (!fEl || !tEl) return;
+
+    const fR = fEl.getBoundingClientRect();
+    const tR = tEl.getBoundingClientRect();
+    const st = main.scrollTop;
+    const sl = main.scrollLeft;
+
+    const x1 = fR.right  - wRect.left + sl;
+    const y1 = fR.top + fR.height / 2 - wRect.top + st;
+    const x2 = tR.left   - wRect.left + sl;
+    const y2 = tR.top + tR.height / 2 - wRect.top + st;
+    const cp = (x1 + x2) / 2;
+
+    const pid = `p${i}`;
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('id', pid);
+    path.setAttribute('d', `M${x1},${y1} C${cp},${y1} ${cp},${y2} ${x2},${y2}`);
+    path.setAttribute('class', `c${c.tp}`);
+    svgEl.appendChild(path);
+
+    const dot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    dot.setAttribute('r','2.5');
+    dot.setAttribute('class', `p${c.tp}`);
+    const anim = document.createElementNS('http://www.w3.org/2000/svg','animateMotion');
+    anim.setAttribute('dur', `${c.sp}s`);
+    anim.setAttribute('begin', `${c.dl}s`);
+    anim.setAttribute('repeatCount','indefinite');
+    const mp = document.createElementNS('http://www.w3.org/2000/svg','mpath');
+    mp.setAttributeNS('http://www.w3.org/1999/xlink','href',`#${pid}`);
+    anim.appendChild(mp);
+    dot.appendChild(anim);
+    svgEl.appendChild(dot);
+  });
+}
+
+// ── DETAIL PANEL ─────────────────────────────────────────────────────────────
+let allNodes = {};
+function buildNodeMap() {
+  LAYERS.forEach(l => l.nodes.forEach(n => { allNodes[n.id] = n; n._lc = l.color; }));
+  EXT.forEach(e => { allNodes[e.id] = e; e._lc = e.c; });
+}
+
+function showDetail(id) {
+  const n = allNodes[id]; if (!n) return;
+  document.querySelectorAll('[data-id]').forEach(el => el.classList.remove('selected'));
+  document.querySelectorAll(`[data-id="${id}"]`).forEach(el => el.classList.add('selected'));
+
+  const d = n.detail || {};
+  document.getElementById('dp-title').textContent = n.name;
+  document.getElementById('dp-type').textContent  = d.type || '';
+
+  let html = '';
+  if (d.kv?.length) {
+    html += `<div class="dp-section"><div class="dp-sec-title">Details</div>`;
+    html += d.kv.map(([k,v]) => `<div class="dp-kv"><span class="dp-k">${k}</span><span class="dp-v">${v}</span></div>`).join('');
+    html += `</div>`;
+  }
+  if (d.tags?.length) {
+    html += `<div class="dp-section"><div class="dp-sec-title">Tags</div>`;
+    html += d.tags.map(t => `<span class="dp-tag">${t}</span>`).join('');
+    html += `</div>`;
+  }
+  if (d.note) {
+    const cls = d.warn ? ' warn' : '';
+    html += `<div class="dp-section"><div class="dp-sec-title">Notes</div><div class="dp-note${cls}">${d.note}</div></div>`;
+  }
+  document.getElementById('dp-body').innerHTML = html;
+  document.getElementById('detail').classList.add('open');
+}
+
+function closePanel() {
+  document.getElementById('detail').classList.remove('open');
+  document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+}
+
+// ── INIT ─────────────────────────────────────────────────────────────────────
+renderLayers();
+renderExt();
+buildNodeMap();
+requestAnimationFrame(() => setTimeout(drawConns, 150));
+window.addEventListener('resize', () => setTimeout(drawConns, 60));
+document.getElementById('main').addEventListener('scroll', () => {
+  document.getElementById('conn-svg').innerHTML = '';
+  setTimeout(drawConns, 30);
+});
+</script>
+</body>
+</html>

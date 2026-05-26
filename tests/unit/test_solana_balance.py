@@ -5,8 +5,8 @@ All HTTP calls are mocked via respx — no real network traffic.
 
 from __future__ import annotations
 
-import pytest
 import httpx
+import pytest
 import respx
 
 from app.chains.solana import spl_balance
