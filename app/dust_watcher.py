@@ -32,11 +32,14 @@ from tenacity import (
     wait_exponential,
 )
 
+from app.balance_gate import evaluate_token_gate, load_token_gate
 from app.chains.evm import (
     confirmations_for,
     find_self_transfer,
     get_chain,
 )
+from app.chains.solana import find_solana_self_transfer
+from app.chains.ton import find_ton_self_transfer
 from app.logging_conf import get_logger
 from app.models import (
     DustRequest,
@@ -156,6 +159,45 @@ async def _persist_verification(
         raise
 
 
+async def _persist_verification_multichain(
+    db: AsyncIOMotorDatabase[Any],
+    *,
+    tg_user_id: int,
+    chat_id: int,
+    address: str,
+    chain: Chain,
+    tx_hash: str,
+) -> None:
+    """Like _persist_verification but accepts a Chain enum directly (TON/Solana).
+
+    TON/Solana addresses are case-sensitive and must NOT be lowercased.
+    Raises WalletAlreadyBoundError if the address is already bound to a
+    different tg_user_id on the same chain.
+    """
+    v = Verification(
+        tg_user_id=tg_user_id,
+        chat_id=chat_id,
+        address=address,  # case-sensitive for TON/Solana
+        chain=chain,
+        method=VerificationMethod.DUST,
+        nonce="",
+        sig_or_txhash=tx_hash,
+    )
+    try:
+        await cast(Any, db.verifications).update_one(
+            {"tg_user_id": tg_user_id, "chat_id": chat_id, "chain": chain.value},
+            {"$set": v.model_dump()},
+            upsert=True,
+        )
+    except pymongo.errors.DuplicateKeyError as exc:
+        existing = await cast(Any, db.verifications).find_one(
+            {"chain": chain.value, "address": address}
+        )
+        if existing is not None and existing.get("tg_user_id") != tg_user_id:
+            raise WalletAlreadyBoundError(address) from exc
+        raise
+
+
 async def _send_dm(bot: Bot, *, tg_user_id: int, text: str) -> None:
     try:
         async for attempt in _telegram_retry():
@@ -175,10 +217,125 @@ async def _process_request(
     bind = log.bind(
         tg_user_id=req.tg_user_id,
         chat_id=req.chat_id,
-        chain_id=req.chain_id,
+        chain_type=req.chain_type,
         address=req.address,
     )
 
+    # ── TON and Solana: instant-finality chains ───────────────────────────────
+    # TON and Solana finalize within seconds. We skip the DETECTED intermediate
+    # state and go straight from PENDING to APPROVED in one watcher tick.
+    if req.chain_type in ("ton", "solana") and req.status == DustRequestStatus.PENDING:
+        min_cursor = req.created_block or 0
+
+        if req.chain_type == "ton":
+            try:
+                tx_ton = await find_ton_self_transfer(
+                    http,
+                    address=req.address,
+                    expected_nanoton=req.amount_wei,
+                    tolerance_nanoton=1_000_000,
+                    min_lt=min_cursor,
+                )
+            except Exception as e:
+                bind.warning("ton_scan_failed", err=repr(e))
+                return
+            if tx_ton is None:
+                return
+            tx_hash = tx_ton.hash
+            explorer_url = f"https://tonscan.org/tx/{tx_ton.hash}"
+            bind.info("ton_detected", tx=tx_hash, lt=tx_ton.lt)
+            chain = Chain.TON
+        else:  # solana
+            try:
+                tx_sol = await find_solana_self_transfer(
+                    http,
+                    address=req.address,
+                    expected_lamports=req.amount_wei,
+                    tolerance_lamports=100_000,
+                    min_slot=min_cursor,
+                )
+            except Exception as e:
+                bind.warning("solana_scan_failed", err=repr(e))
+                return
+            if tx_sol is None:
+                return
+            tx_hash = tx_sol.signature
+            explorer_url = f"https://solscan.io/tx/{tx_sol.signature}"
+            bind.info("solana_detected", sig=tx_hash, slot=tx_sol.slot)
+            chain = Chain.SOLANA
+
+        # Persist verification and approve.
+        try:
+            await _persist_verification_multichain(
+                db,
+                tg_user_id=req.tg_user_id,
+                chat_id=req.chat_id,
+                address=req.address,
+                chain=chain,
+                tx_hash=tx_hash,
+            )
+        except WalletAlreadyBoundError:
+            await cast(Any, db.dust_requests).update_one(
+                {"_id": req.id},
+                {"$set": {"status": DustRequestStatus.CANCELLED.value}},
+            )
+            await _send_dm(
+                bot,
+                tg_user_id=req.tg_user_id,
+                text=(
+                    "<code>❌ Wallet already linked to another account.</code>\n\n"
+                    f"<code>{req.address}</code> is already bound to a different "
+                    "Telegram account. Use a different wallet address and run "
+                    "<code>/verify</code> again."
+                ),
+            )
+            bind.warning("dust_wallet_bound_to_other", address=req.address)
+            return
+
+        # Token gate check (same as EVM path).
+        token_gate = await load_token_gate(db, chat_id=req.chat_id)
+        if token_gate is not None:
+            addr_key = "ton" if req.chain_type == "ton" else "solana"
+            addresses = {addr_key: req.address}
+            passed = await evaluate_token_gate(http, gate=token_gate, addresses=addresses)
+            if not passed:
+                await cast(Any, db.dust_requests).update_one(
+                    {"_id": req.id},
+                    {"$set": {"status": DustRequestStatus.APPROVED.value}},
+                )
+                await _send_dm(
+                    bot,
+                    tg_user_id=req.tg_user_id,
+                    text=(
+                        "✅ Wallet verified, but...\n\n"
+                        f"<code>{req.address}</code> doesn't hold $10+ of any required token.\n"
+                        "Top up your wallet and try joining again — your wallet stays linked."
+                    ),
+                )
+                bind.info("dust_verified_token_gate_failed", address=req.address)
+                return
+
+        approved = await _approve_pending_join(bot, chat_id=req.chat_id, tg_user_id=req.tg_user_id)
+        await cast(Any, db.dust_requests).update_one(
+            {"_id": req.id},
+            {"$set": {"status": DustRequestStatus.APPROVED.value}},
+        )
+        bind.info("dust_verified", tx=tx_hash, approved_join=approved)
+
+        msg = (
+            "✅ Verified.\n\n"
+            f"Wallet bound: <code>{req.address}</code>\n"
+            f"Tx: {explorer_url}\n\n"
+            + (
+                "You've been approved into the chat."
+                if approved
+                else "Tap the invite link again -- you're now whitelisted."
+            )
+        )
+        await _send_dm(bot, tg_user_id=req.tg_user_id, text=msg)
+        return
+
+    # ── EVM path (unchanged below) ────────────────────────────────────────────
     # Re-scan for the matching tx if we haven't pinned one yet.
     if req.status == DustRequestStatus.PENDING:
         try:
@@ -284,8 +441,6 @@ async def _process_request(
             return
 
         # Check token gate if configured for this chat.
-        from app.balance_gate import evaluate_token_gate, load_token_gate
-
         token_gate = await load_token_gate(db, chat_id=req.chat_id)
         if token_gate is not None:
             addresses = {"evm": req.address}  # dust-verified EVM address
