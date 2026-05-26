@@ -34,6 +34,7 @@ log = get_logger(__name__)
 ALLOWED_UPDATES: list[str] = [
     "chat_join_request",
     "chat_member",
+    "my_chat_member",  # bot promoted/demoted in a group — needed to register chats
     "message",
     "callback_query",
 ]
