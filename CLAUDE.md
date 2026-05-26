@@ -45,6 +45,7 @@ The WA sidecar is the single notification channel for this project.
 |---|---|---|
 | `deploy-tg-token.yml` | `workflow_dispatch` | Clone/pull repo, build Docker image, start compose, verify bot alive, WA-notify |
 | `check-tg-token-logs.yml` | `workflow_dispatch` | Fetch container status + last 80 log lines via root SSH |
+| `tg-token-flip-mainnet.yml` | `workflow_dispatch` | Set DUST_CHAIN_ID=8453 in .env.prod and restart bot, WA-notify |
 
 These workflows were previously in `orhankhan01911/project-btcV2` —
 they were moved here on 2026-05-26 so that pushes to btcV2 no longer

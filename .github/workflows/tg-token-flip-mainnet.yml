@@ -1,0 +1,68 @@
+name: tg-token-flip-mainnet
+
+# Set DUST_CHAIN_ID=8453 (Base mainnet) in .env.prod and restart the bot.
+# Manual trigger only.
+# Notifications → WhatsApp "CI/CD tg token" group via local WA sidecar (:8787).
+
+on:
+  workflow_dispatch:
+
+jobs:
+  flip:
+    runs-on: [self-hosted, hetzner]
+    timeout-minutes: 5
+
+    steps:
+      - name: Set DUST_CHAIN_ID=8453 and restart bot
+        env:
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          KEY_FILE=$(mktemp)
+          printf '%s\n' "$SSH_KEY" > "$KEY_FILE"
+          chmod 600 "$KEY_FILE"
+          SSH="ssh -i $KEY_FILE -o StrictHostKeyChecking=no -o ConnectTimeout=15 ${SSH_USER}@127.0.0.1"
+
+          ENV_FILE="$HOME/tg-token/.env.prod"
+
+          echo "==> Setting DUST_CHAIN_ID=8453 (Base mainnet)"
+          $SSH "
+            if grep -q 'DUST_CHAIN_ID' '$ENV_FILE'; then
+              sed -i 's/.*DUST_CHAIN_ID.*/DUST_CHAIN_ID=8453/' '$ENV_FILE'
+            else
+              echo 'DUST_CHAIN_ID=8453' >> '$ENV_FILE'
+            fi
+            echo 'Updated .env.prod:'
+            grep 'DUST_CHAIN_ID' '$ENV_FILE'
+          "
+
+          echo "==> Restarting bot container"
+          $SSH "docker restart tg-token-bot"
+          sleep 8
+
+          echo "==> Confirming startup"
+          $SSH "docker logs --tail=20 tg-token-bot 2>&1"
+
+          $SSH "docker logs tg-token-bot 2>&1 | grep -q 'bot_starting'" \
+            && echo "✅ Bot alive on Base mainnet" \
+            || (echo "❌ bot_starting not found" && exit 1)
+
+          rm -f "$KEY_FILE"
+
+      # ── Notifications ────────────────────────────────────────────────────────
+      - name: Notify flip success
+        if: success()
+        run: |
+          MSG="🔄 *tg-token* flipped to Base mainnet (DUST_CHAIN_ID=8453)"
+          curl -sf -X POST http://127.0.0.1:8787/send \
+            -H "Content-Type: application/json" \
+            -d "{\"to\":\"CI/CD tg token\",\"body\":$(echo "$MSG" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')}" || true
+
+      - name: Notify flip failure
+        if: failure()
+        run: |
+          MSG="❌ *tg-token* mainnet flip FAILED — check Actions logs
+https://github.com/orhankhan01911/project-tg-token/actions"
+          curl -sf -X POST http://127.0.0.1:8787/send \
+            -H "Content-Type: application/json" \
+            -d "{\"to\":\"CI/CD tg token\",\"body\":$(echo "$MSG" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')}" || true
