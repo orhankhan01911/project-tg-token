@@ -51,6 +51,19 @@ log = get_logger(__name__)
 
 router = Router(name="tg_token")
 
+
+def _html_escape(text: str) -> str:
+    """Escape arbitrary text for safe injection into Telegram HTML-mode messages.
+
+    Telegram's HTML parse mode renders <b>, <i>, <a>, etc. Any user-controlled
+    string (group names, usernames, addresses) MUST be escaped before embedding
+    in a format string that uses parse_mode=HTML. Failure to do so is a phishing
+    vector: a group admin could set the title to '<a href="evil.com">click here</a>'
+    and the bot would render it as a clickable link in the verification DM.
+    """
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
 # 0x-prefixed 40-hex-char address. We don't enforce EIP-55 checksum since
 # wallets often emit lowercase; we lowercase before storage.
 _ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
@@ -77,7 +90,7 @@ def _telegram_retry() -> AsyncRetrying:
 
 
 def _verify_instructions_dm(*, chat_title: str | None) -> str:
-    title = chat_title or "this chat"
+    title = _html_escape(chat_title) if chat_title else "this chat"
     return (
         f"Hi! To join <b>{title}</b> verify a wallet by sending yourself a "
         "tiny test transaction.\n\n"
@@ -445,7 +458,7 @@ async def _cmd_settings_text(db: AsyncIOMotorDatabase[Any], *, owner_id: int) ->
     lines: list[str] = []
     for chat in chats:
         chat_id = int(chat["_id"])
-        title = chat.get("title") or str(chat_id)
+        title = _html_escape(chat.get("title") or str(chat_id))
         purge_status = "✓ enabled (monthly)" if chat.get("purge_enabled") else "✗ disabled"
         lines.append(f"📋 <b>{title}</b> ({chat_id}) — purge {purge_status}:")
         gates = await cast(Any, db.gates).find({"chat_id": chat_id}).to_list(None)

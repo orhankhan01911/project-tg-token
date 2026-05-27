@@ -225,7 +225,28 @@ async def _process_request(
     # TON and Solana finalize within seconds. We skip the DETECTED intermediate
     # state and go straight from PENDING to APPROVED in one watcher tick.
     if req.chain_type in ("ton", "solana") and req.status == DustRequestStatus.PENDING:
-        min_cursor = req.created_block or 0
+        # Security: created_block/slot/lt MUST be set. If the RPC failed at
+        # issuance time, created_block is None and scanning from 0 would
+        # accept any historical self-transfer — a full verification bypass.
+        # Fail-safe: cancel the request and ask the user to retry.
+        if req.created_block is None:
+            bind.error("dust_request_missing_created_block", chain=req.chain_type)
+            await cast(Any, db.dust_requests).update_one(
+                {"_id": req.id},
+                {"$set": {"status": DustRequestStatus.CANCELLED.value}},
+            )
+            await _send_dm(
+                bot,
+                tg_user_id=req.tg_user_id,
+                text=(
+                    "❌ <b>Verification request invalid.</b>\n\n"
+                    "An RPC error prevented recording your starting block at issuance time. "
+                    "Please send <code>/cancel</code> then <code>/verify</code> again to "
+                    "start a fresh request."
+                ),
+            )
+            return
+        min_cursor = req.created_block
 
         if req.chain_type == "ton":
             try:
@@ -334,6 +355,27 @@ async def _process_request(
     # ── EVM path (unchanged below) ────────────────────────────────────────────
     # Re-scan for the matching tx if we haven't pinned one yet.
     if req.status == DustRequestStatus.PENDING:
+        # Security: created_block MUST be set. If None, scanning from block 0
+        # would accept any historical self-transfer on the address — a full
+        # verification bypass. Cancel and ask user to re-verify.
+        if req.created_block is None:
+            bind.error("dust_request_missing_created_block", chain="evm")
+            await cast(Any, db.dust_requests).update_one(
+                {"_id": req.id},
+                {"$set": {"status": DustRequestStatus.CANCELLED.value}},
+            )
+            await _send_dm(
+                bot,
+                tg_user_id=req.tg_user_id,
+                text=(
+                    "❌ <b>Verification request invalid.</b>\n\n"
+                    "An RPC error prevented recording your starting block at issuance time. "
+                    "Please send <code>/cancel</code> then <code>/verify</code> again to "
+                    "start a fresh request."
+                ),
+            )
+            return
+
         try:
             tx = await find_self_transfer(
                 http,
@@ -342,8 +384,7 @@ async def _process_request(
                 expected_value_wei=req.amount_wei,
                 blocks_to_scan=500,  # Base: 2s/block → ~16min window; was 15 (30s) which missed slow users
                 tolerance_wei=10_000_000,  # suffix range = 10^7; wallets round to base, diff ≤ max_suffix
-                min_block=req.created_block
-                or 0,  # freshness gate: only accept txs mined after request was issued
+                min_block=req.created_block,  # freshness gate: only accept txs mined after issuance
             )
         except Exception as e:
             bind.warning("dust_scan_failed", err=repr(e))

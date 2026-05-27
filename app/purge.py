@@ -20,7 +20,7 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramRetryAfter
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.gates import Decline, evaluate
+from app.gates import Decline, NeedsVerify, evaluate
 from app.logging_conf import get_logger
 
 log = get_logger(__name__)
@@ -57,11 +57,15 @@ async def purge_chat(
     *,
     chat_id: int,
 ) -> PurgeResult:
-    """Evaluate every verified member of `chat_id`. Ban those who Decline.
+    """Evaluate every verified member of `chat_id`. Ban those who Decline or NeedsVerify.
 
-    Only bans on `Decline` — `NeedsVerify` means the wallet proof expired,
-    not that the user sold their tokens. We don't punish users whose
-    verification TTL lapsed.
+    Bans on both `Decline` (token balance insufficient) AND `NeedsVerify`
+    (wallet proof TTL expired). Expiry means we cannot confirm they still
+    hold the required tokens — treat as unverified, enforce the gate.
+
+    Security rationale: a user who sold their tokens and waited 24h for
+    their verification to TTL out would previously slip through purge
+    (NeedsVerify was skipped). Now both states result in removal.
     """
     result = PurgeResult(chat_id=chat_id)
     verifications = await db.verifications.find({"chat_id": chat_id}).to_list(None)
@@ -77,13 +81,20 @@ async def purge_chat(
             continue
 
         if isinstance(decision, Decline):
-            log.info("purge_banning", chat_id=chat_id, user_id=user_id, reason=decision.reason)
-            try:
-                await _ban_with_retry(bot, chat_id=chat_id, user_id=user_id)
-                result.banned += 1
-            except Exception as e:
-                log.error("purge_ban_error", chat_id=chat_id, user_id=user_id, err=str(e))
-                result.errors.append(str(e))
+            ban_reason = decision.reason
+        elif isinstance(decision, NeedsVerify):
+            # Verification expired — cannot confirm token holdings. Treat as unverified.
+            ban_reason = "verification_expired"
+        else:
+            continue  # Approve — user still meets requirements, skip
+
+        log.info("purge_banning", chat_id=chat_id, user_id=user_id, reason=ban_reason)
+        try:
+            await _ban_with_retry(bot, chat_id=chat_id, user_id=user_id)
+            result.banned += 1
+        except Exception as e:
+            log.error("purge_ban_error", chat_id=chat_id, user_id=user_id, err=str(e))
+            result.errors.append(str(e))
 
     log.info("purge_chat_done", chat_id=chat_id, checked=result.checked, banned=result.banned)
     return result

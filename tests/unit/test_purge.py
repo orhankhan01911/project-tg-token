@@ -75,8 +75,14 @@ async def test_purge_chat_bans_failing_members(db, bot, http):
 
 
 @pytest.mark.asyncio
-async def test_purge_chat_skips_needs_verify(db, bot, http):
-    """NeedsVerify (unverified) — do NOT ban; wallet proof expired, not insufficient balance."""
+async def test_purge_chat_bans_needs_verify(db, bot, http):
+    """NeedsVerify during purge = ban.
+
+    Security fix (C1): users who sell tokens then wait for their verification
+    TTL to expire previously escaped purge because NeedsVerify was skipped.
+    Now expiry is treated as unverified — cannot confirm token holdings — and
+    the user is removed. They can re-verify with /verify if they re-acquire tokens.
+    """
     await _seed(db, members=[1])
     with patch(
         "app.purge.evaluate",
@@ -85,8 +91,8 @@ async def test_purge_chat_skips_needs_verify(db, bot, http):
         from app.purge import purge_chat
 
         result = await purge_chat(bot, db, http, chat_id=-1001)
-    assert result.banned == 0
-    bot.ban_chat_member.assert_not_called()
+    assert result.banned == 1
+    bot.ban_chat_member.assert_called_once()
 
 
 @pytest.mark.asyncio
