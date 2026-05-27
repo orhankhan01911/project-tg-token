@@ -1,11 +1,11 @@
 # app/purge.py
-"""Daily purge engine.
+"""Monthly purge engine.
 
 Iterates all chats with purge_enabled=True. For each chat, re-evaluates
 every verified member. Members who Decline (insufficient_balance) are
 banned. NeedsVerify is skipped — wallet expired, not token-insufficient.
 
-Called by APScheduler once per day. Also callable manually (admin command
+Called by APScheduler on the 1st of each month. Also callable manually (admin command
 or test). Never touches bot.py — purely a logic module.
 """
 
@@ -94,7 +94,7 @@ async def run_purge_all_chats(
     db: AsyncIOMotorDatabase[Any],
     http: httpx.AsyncClient,
 ) -> None:
-    """Daily job: purge all chats with purge_enabled=True.
+    """Monthly job: purge all chats with purge_enabled=True.
 
     Called by APScheduler. Errors in individual chats are logged but don't
     abort the sweep — one broken chat shouldn't stop others.

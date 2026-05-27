@@ -104,9 +104,10 @@ async def _run() -> int:
     scheduler.add_job(
         run_purge_all_chats,
         trigger="cron",
+        day=1,
         hour=getattr(settings, "purge_hour_utc", 0),
         kwargs={"bot": bot, "db": db, "http": http},
-        id="daily_purge",
+        id="monthly_purge",
         replace_existing=True,
     )
     scheduler.start()

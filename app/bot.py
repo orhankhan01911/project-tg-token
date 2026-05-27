@@ -446,7 +446,7 @@ async def _cmd_settings_text(db: AsyncIOMotorDatabase[Any], *, owner_id: int) ->
     for chat in chats:
         chat_id = int(chat["_id"])
         title = chat.get("title") or str(chat_id)
-        purge_status = "✓ enabled" if chat.get("purge_enabled") else "✗ disabled"
+        purge_status = "✓ enabled (monthly)" if chat.get("purge_enabled") else "✗ disabled"
         lines.append(f"📋 <b>{title}</b> ({chat_id}) — purge {purge_status}:")
         gates = await cast(Any, db.gates).find({"chat_id": chat_id}).to_list(None)
         if gates:
@@ -623,7 +623,7 @@ async def on_purge_enable(message: Message, db: AsyncIOMotorDatabase[Any]) -> No
     if not message.from_user:
         return
     await _set_purge_enabled(db, owner_id=message.from_user.id, enabled=True)
-    await message.answer("✓ Daily purge enabled for your groups.")
+    await message.answer("✓ Monthly purge enabled for your groups.")
 
 
 @router.message(Command("purge_disable"))
@@ -631,7 +631,7 @@ async def on_purge_disable(message: Message, db: AsyncIOMotorDatabase[Any]) -> N
     if not message.from_user:
         return
     await _set_purge_enabled(db, owner_id=message.from_user.id, enabled=False)
-    await message.answer("✓ Daily purge disabled for your groups.")
+    await message.answer("✓ Monthly purge disabled for your groups.")
 
 
 @router.message(Command("recheck"))
