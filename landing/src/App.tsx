@@ -118,20 +118,19 @@ export default function App() {
               Everything you need to run an exclusive, always-enforced token community.
             </p>
           </motion.div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 items-stretch">
             {FEATURES.map((f, i) => (
               <motion.div
                 key={i} custom={i * 0.1}
                 variants={fadeUp} initial="hidden" whileInView="visible" viewport={{ once: true }}
+                className="h-full"
               >
-                <GlowCard customSize glowColor="indigo" className="w-full h-full min-h-[180px] !aspect-auto">
-                  <div>
-                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#4b5694]/30 to-[#7288ae]/20 flex items-center justify-center text-xl mb-5">
-                      {f.icon}
-                    </div>
-                    <div className="font-bold text-[#eae0cf] mb-2">{f.title}</div>
-                    <div className="text-[#eae0cf]/50 text-sm leading-relaxed">{f.desc}</div>
+                <GlowCard customSize glowColor="indigo" className="w-full !grid-rows-none !aspect-auto block p-7">
+                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#4b5694]/30 to-[#7288ae]/20 flex items-center justify-center text-xl mb-5">
+                    {f.icon}
                   </div>
+                  <div className="font-bold text-white mb-2">{f.title}</div>
+                  <div className="text-white/70 text-sm leading-relaxed">{f.desc}</div>
                 </GlowCard>
               </motion.div>
             ))}
