@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "mkdir -p dist && cp aurora.html dist/index.html",
     "preview": "vite preview"
   },
   "devDependencies": {

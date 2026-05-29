@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Gatekept — Token-Gate Your Telegram Community</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #060412;
+    --violet: #7c3aed;
+    --cyan: #0891b2;
+    --rose: #be185d;
+    --emerald: #065f46;
+    --white: #ffffff;
+    --muted: #94a3b8;
+    --glass: rgba(255, 255, 255, 0.05);
+    --glass-border: rgba(255, 255, 255, 0.10);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--white);
+    font-family: 'Inter', sans-serif;
+    line-height: 1.6;
+    overflow-x: hidden;
+    position: relative;
+    min-height: 100vh;
+  }
+
+  h1, h2, h3, h4 { font-family: 'Plus Jakarta Sans', sans-serif; line-height: 1.1; }
+
+  a { text-decoration: none; color: inherit; }
+
+  /* ============ AURORA BACKGROUND ============ */
+  .aurora {
+    position: fixed;
+    inset: 0;
+    z-index: -2;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .blob {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.4;
+    will-change: transform;
+    mix-blend-mode: screen;
+  }
+
+  .blob-1 {
+    width: 50vw; height: 50vw;
+    background: var(--violet);
+    top: -10%; left: -5%;
+    animation: drift1 13s ease-in-out infinite alternate;
+  }
+  .blob-2 {
+    width: 45vw; height: 45vw;
+    background: var(--cyan);
+    top: 20%; right: -10%;
+    animation: drift2 11s ease-in-out infinite alternate;
+  }
+  .blob-3 {
+    width: 40vw; height: 40vw;
+    background: var(--rose);
+    bottom: -10%; left: 15%;
+    animation: drift3 15s ease-in-out infinite alternate;
+  }
+  .blob-4 {
+    width: 38vw; height: 38vw;
+    background: var(--emerald);
+    bottom: 5%; right: 10%;
+    animation: drift4 12s ease-in-out infinite alternate;
+  }
+  .blob-5 {
+    width: 30vw; height: 30vw;
+    background: var(--violet);
+    top: 45%; left: 40%;
+    animation: drift5 14s ease-in-out infinite alternate;
+  }
+  .blob-6 {
+    width: 28vw; height: 28vw;
+    background: var(--cyan);
+    top: 60%; left: 5%;
+    animation: drift1 10s ease-in-out infinite alternate-reverse;
+  }
+
+  @keyframes drift1 {
+    0%   { transform: translate3d(0, 0, 0) scale(1); }
+    100% { transform: translate3d(8vw, 6vh, 0) scale(1.25); }
+  }
+  @keyframes drift2 {
+    0%   { transform: translate3d(0, 0, 0) scale(1.1); }
+    100% { transform: translate3d(-7vw, 9vh, 0) scale(0.85); }
+  }
+  @keyframes drift3 {
+    0%   { transform: translate3d(0, 0, 0) scale(0.9); }
+    100% { transform: translate3d(10vw, -7vh, 0) scale(1.2); }
+  }
+  @keyframes drift4 {
+    0%   { transform: translate3d(0, 0, 0) scale(1); }
+    100% { transform: translate3d(-9vw, -6vh, 0) scale(1.3); }
+  }
+  @keyframes drift5 {
+    0%   { transform: translate3d(0, 0, 0) scale(1.15); }
+    100% { transform: translate3d(-6vw, -8vh, 0) scale(0.8); }
+  }
+
+  /* dot grid + vignette overlay */
+  .grain {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at 50% 40%, transparent 0%, rgba(6,4,18,0.55) 80%, rgba(6,4,18,0.9) 100%);
+  }
+
+  /* ============ LAYOUT ============ */
+  .container { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+
+  /* ============ NAV ============ */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    background: rgba(6, 4, 18, 0.45);
+    border-bottom: 1px solid var(--glass-border);
+  }
+  .nav-inner {
+    max-width: 1180px; margin: 0 auto;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 24px;
+  }
+  .logo {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 800;
+    font-size: 1.25rem;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .logo-dot {
+    width: 12px; height: 12px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--violet), var(--cyan));
+    box-shadow: 0 0 16px rgba(124,58,237,0.8);
+  }
+  .nav-links { display: flex; gap: 32px; align-items: center; }
+  .nav-links a { color: var(--muted); font-size: 0.92rem; font-weight: 500; transition: color .2s; }
+  .nav-links a:hover { color: var(--white); }
+  .nav-cta {
+    padding: 9px 20px;
+    border-radius: 999px;
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    color: var(--white) !important;
+    font-weight: 600;
+    transition: background .2s, transform .2s;
+  }
+  .nav-cta:hover { background: rgba(255,255,255,0.12); transform: translateY(-1px); }
+  .nav-toggle { display: none; background: none; border: none; color: var(--white); font-size: 1.5rem; cursor: pointer; }
+
+  /* ============ HERO ============ */
+  .hero {
+    min-height: 100vh;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center;
+    padding: 140px 24px 80px;
+    position: relative;
+  }
+
+  .glass-panel {
+    backdrop-filter: blur(22px);
+    -webkit-backdrop-filter: blur(22px);
+    background: rgba(255,255,255,0.045);
+    border: 1px solid var(--glass-border);
+    border-radius: 32px;
+    padding: 64px 56px;
+    max-width: 860px;
+    box-shadow: 0 40px 120px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08);
+    position: relative;
+  }
+
+  .badge-tag {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 7px 16px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--glass-border);
+    font-size: 0.8rem; font-weight: 600; letter-spacing: 0.02em;
+    color: var(--muted);
+    margin-bottom: 28px;
+  }
+  .badge-tag .pulse {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #22d3ee;
+    box-shadow: 0 0 10px #22d3ee;
+    animation: pulse 1.8s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+  .hero h1 {
+    font-size: clamp(2.6rem, 6.5vw, 5rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    margin-bottom: 22px;
+  }
+  .grad-text {
+    background: linear-gradient(110deg, #a78bfa 0%, #67e8f9 55%, #f472b6 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .hero p.sub {
+    font-size: clamp(1rem, 2.2vw, 1.3rem);
+    color: var(--muted);
+    max-width: 540px;
+    margin: 0 auto 40px;
+    font-weight: 500;
+  }
+
+  .cta-row { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+
+  /* shimmer CTA */
+  .btn-primary {
+    position: relative;
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 16px 34px;
+    border-radius: 999px;
+    font-weight: 700; font-size: 1rem;
+    color: #060412;
+    background: var(--white);
+    overflow: hidden;
+    z-index: 0;
+    transition: transform .2s, box-shadow .2s;
+  }
+  .btn-primary::before {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: 999px;
+    padding: 2px;
+    background: linear-gradient(90deg, #a78bfa, #67e8f9, #f472b6, #34d399, #a78bfa);
+    background-size: 300% 100%;
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: shimmer 4s linear infinite;
+    z-index: -1;
+  }
+  @keyframes shimmer { 0% { background-position: 0% 50%; } 100% { background-position: 300% 50%; } }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(124,58,237,0.4); }
+
+  .btn-ghost {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 16px 30px;
+    border-radius: 999px;
+    font-weight: 600; font-size: 1rem;
+    color: var(--white);
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    transition: background .2s, transform .2s;
+  }
+  .btn-ghost:hover { background: rgba(255,255,255,0.12); transform: translateY(-2px); }
+
+  /* floating chain pills */
+  .chain-float {
+    display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;
+    margin-top: 48px;
+  }
+  .chain-pill {
+    display: inline-flex; align-items: center; gap: 9px;
+    padding: 11px 22px;
+    border-radius: 999px;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--glass-border);
+    font-weight: 600; font-size: 0.92rem;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+  }
+  .chain-pill .ico { width: 22px; height: 22px; border-radius: 50%; display: inline-block; }
+  .chain-float .chain-pill:nth-child(1) { animation: float 4s ease-in-out infinite; }
+  .chain-float .chain-pill:nth-child(2) { animation: float 4.6s ease-in-out 0.4s infinite; }
+  .chain-float .chain-pill:nth-child(3) { animation: float 4.2s ease-in-out 0.8s infinite; }
+  .chain-float .chain-pill:nth-child(4) { animation: float 5s ease-in-out 1.2s infinite; }
+  @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
+
+  /* ============ STATS ============ */
+  .stats {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin: 40px auto 0;
+    max-width: 720px;
+  }
+  .stat {
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    padding: 26px 18px;
+  }
+  .stat .num {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 800;
+    font-size: clamp(1.8rem, 4vw, 2.6rem);
+    background: linear-gradient(110deg, #a78bfa, #67e8f9);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat .lbl { color: var(--muted); font-size: 0.85rem; font-weight: 500; margin-top: 4px; }
+
+  /* ============ SECTION HEADERS ============ */
+  section { padding: 100px 0; position: relative; }
+  .sec-head { text-align: center; max-width: 640px; margin: 0 auto 60px; }
+  .sec-head .accent-line {
+    width: 0; height: 3px; margin: 0 auto 20px;
+    background: linear-gradient(90deg, var(--violet), var(--cyan));
+    border-radius: 2px;
+    transition: width .8s ease;
+  }
+  .sec-head.in .accent-line { width: 64px; }
+  .sec-head h2 {
+    font-size: clamp(2rem, 5vw, 3.2rem);
+    font-weight: 800; letter-spacing: -0.02em;
+    margin-bottom: 16px;
+  }
+  .sec-head p { color: var(--muted); font-size: 1.05rem; }
+
+  /* ============ BENTO FEATURES ============ */
+  .bento {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-auto-rows: minmax(180px, auto);
+    gap: 20px;
+  }
+  .card {
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: 24px;
+    padding: 32px;
+    position: relative;
+    overflow: hidden;
+    transition: transform .15s ease, box-shadow .3s ease, border-color .3s ease;
+    transform-style: preserve-3d;
+    will-change: transform;
+  }
+  .card::after {
+    content: "";
+    position: absolute; inset: 0;
+    border-radius: 24px;
+    background: radial-gradient(400px circle at var(--mx,50%) var(--my,50%), rgba(124,58,237,0.18), transparent 55%);
+    opacity: 0; transition: opacity .3s;
+    pointer-events: none;
+  }
+  .card:hover::after { opacity: 1; }
+  .card:hover { border-color: rgba(255,255,255,0.22); box-shadow: 0 24px 60px rgba(0,0,0,0.35); }
+  .card .ico-box {
+    width: 50px; height: 50px; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, rgba(124,58,237,0.35), rgba(8,145,178,0.35));
+    border: 1px solid var(--glass-border);
+    margin-bottom: 20px;
+    font-size: 1.5rem;
+  }
+  .card h3 { font-size: 1.25rem; font-weight: 700; margin-bottom: 10px; }
+  .card p { color: var(--muted); font-size: 0.95rem; }
+  .card.large { grid-column: span 2; grid-row: span 2; }
+  .card.large h3 { font-size: 1.7rem; }
+  .card.large .big-vis {
+    margin-top: 24px;
+    display: flex; gap: 12px; flex-wrap: wrap;
+  }
+  .mini-chip {
+    padding: 8px 14px; border-radius: 999px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--glass-border);
+    font-size: 0.82rem; font-weight: 600; color: var(--muted);
+  }
+
+  /* ============ STEPPER ============ */
+  .stepper { max-width: 760px; margin: 0 auto; position: relative; }
+  .step {
+    display: flex; gap: 26px; align-items: flex-start;
+    margin-bottom: 18px;
+    position: relative;
+  }
+  .step-orb {
+    flex-shrink: 0;
+    width: 64px; height: 64px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 800; font-size: 1.3rem;
+    background: radial-gradient(circle at 30% 30%, var(--violet), var(--cyan));
+    box-shadow: 0 0 30px rgba(124,58,237,0.5);
+    position: relative; z-index: 2;
+  }
+  .step-orb::before {
+    content: ""; position: absolute; inset: -6px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.15);
+  }
+  .step-connector {
+    position: absolute;
+    left: 31px; top: 64px; bottom: -18px;
+    width: 2px;
+    background: linear-gradient(180deg, rgba(124,58,237,0.6), rgba(8,145,178,0.2));
+  }
+  .step:last-child .step-connector { display: none; }
+  .step-card {
+    flex: 1;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    padding: 24px 28px;
+  }
+  .step-card h3 { font-size: 1.2rem; font-weight: 700; margin-bottom: 6px; }
+  .step-card p { color: var(--muted); font-size: 0.95rem; }
+
+  /* ============ CHAINS SCROLL ============ */
+  .chain-track {
+    display: flex; gap: 18px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    padding: 8px 4px 20px;
+    -ms-overflow-style: none; scrollbar-width: none;
+  }
+  .chain-track::-webkit-scrollbar { display: none; }
+  .chain-card {
+    scroll-snap-align: center;
+    flex: 1 0 220px;
+    min-width: 220px;
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: 22px;
+    padding: 30px;
+    text-align: center;
+    transition: transform .2s, border-color .2s;
+  }
+  .chain-card:hover { transform: translateY(-6px); border-color: rgba(255,255,255,0.25); }
+  .chain-card .orb {
+    width: 56px; height: 56px; border-radius: 50%;
+    margin: 0 auto 18px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 1.3rem;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+  }
+  .chain-card h3 { font-size: 1.2rem; margin-bottom: 4px; }
+  .chain-card p { color: var(--muted); font-size: 0.85rem; }
+
+  /* ============ CTA SECTION ============ */
+  .cta-section { text-align: center; }
+  .cta-glass {
+    position: relative;
+    max-width: 880px; margin: 0 auto;
+    border-radius: 32px;
+    padding: 72px 48px;
+    backdrop-filter: blur(22px);
+    -webkit-backdrop-filter: blur(22px);
+    background: rgba(255,255,255,0.04);
+    overflow: hidden;
+  }
+  .cta-glass::before {
+    content: "";
+    position: absolute; inset: 0;
+    border-radius: 32px;
+    padding: 2px;
+    background: linear-gradient(90deg, #a78bfa, #67e8f9, #f472b6, #34d399, #a78bfa);
+    background-size: 300% 100%;
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+    animation: shimmer 5s linear infinite;
+  }
+  .cta-glass h2 { font-size: clamp(2rem, 5vw, 3.2rem); font-weight: 800; margin-bottom: 18px; letter-spacing: -0.02em; }
+  .cta-glass p { color: var(--muted); font-size: 1.1rem; max-width: 480px; margin: 0 auto 36px; }
+
+  /* ============ FOOTER ============ */
+  footer {
+    border-top: 1px solid var(--glass-border);
+    padding: 40px 0;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+  footer .logo { justify-content: center; margin-bottom: 14px; color: var(--white); }
+
+  /* ============ REVEAL ============ */
+  .reveal { opacity: 0; transform: translateY(30px); transition: opacity .7s ease, transform .7s ease; }
+  .reveal.in { opacity: 1; transform: translateY(0); }
+
+  /* ============ RESPONSIVE ============ */
+  @media (max-width: 900px) {
+    .bento { grid-template-columns: repeat(2, 1fr); }
+    .card.large { grid-column: span 2; grid-row: span 1; }
+  }
+  @media (max-width: 720px) {
+    .nav-links { display: none; }
+    .nav-toggle { display: block; }
+    .glass-panel { padding: 44px 26px; border-radius: 24px; }
+    .bento { grid-template-columns: 1fr; }
+    .card.large { grid-column: span 1; }
+    .stats { grid-template-columns: 1fr; }
+    .blob { filter: blur(60px); opacity: 0.35; }
+    .blob-5, .blob-6 { display: none; }
+    .step { gap: 16px; }
+    .cta-glass { padding: 48px 24px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- AURORA BACKGROUND -->
+<div class="aurora" aria-hidden="true">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+  <div class="blob blob-4"></div>
+  <div class="blob blob-5"></div>
+  <div class="blob blob-6"></div>
+</div>
+<div class="grain" aria-hidden="true"></div>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-inner">
+    <div class="logo"><span class="logo-dot"></span>Gatekept</div>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#how">How it works</a>
+      <a href="#chains">Chains</a>
+      <a class="nav-cta" href="https://web.telegram.org/k/#@derivativesmonkey" target="_blank" rel="noopener">Get Started</a>
+    </div>
+    <button class="nav-toggle" aria-label="Menu">☰</button>
+  </div>
+</nav>
+
+<!-- HERO -->
+<header class="hero">
+  <div class="glass-panel reveal">
+    <span class="badge-tag"><span class="pulse"></span>Non-custodial token gating</span>
+    <h1>Token-Gate Your<br /><span class="grad-text">Telegram Community</span></h1>
+    <p class="sub">Non-custodial. Multichain. Automatic enforcement.</p>
+    <div class="cta-row">
+      <a class="btn-primary" href="https://web.telegram.org/k/#@derivativesmonkey" target="_blank" rel="noopener">
+        Contact us on Telegram →
+      </a>
+      <a class="btn-ghost" href="#how">See how it works</a>
+    </div>
+
+    <div class="chain-float">
+      <span class="chain-pill"><span class="ico" style="background:linear-gradient(135deg,#627eea,#8aa3ff)"></span>Ethereum</span>
+      <span class="chain-pill"><span class="ico" style="background:linear-gradient(135deg,#0052ff,#4d8bff)"></span>Base</span>
+      <span class="chain-pill"><span class="ico" style="background:linear-gradient(135deg,#14f195,#9945ff)"></span>Solana</span>
+      <span class="chain-pill"><span class="ico" style="background:linear-gradient(135deg,#0098ea,#33c2ff)"></span>TON</span>
+    </div>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats reveal" id="stats">
+    <div class="stat"><div class="num" data-target="4" data-suffix="">0</div><div class="lbl">Chains Supported</div></div>
+    <div class="stat"><div class="num" data-target="2" data-prefix="~" data-suffix=" min">0</div><div class="lbl">Setup Time</div></div>
+    <div class="stat"><div class="num" data-text="Zero">Zero</div><div class="lbl">Custody</div></div>
+  </div>
+</header>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="container">
+    <div class="sec-head reveal">
+      <div class="accent-line"></div>
+      <h2>Everything you need to <span class="grad-text">gate access</span></h2>
+      <p>A complete token-gating toolkit that runs itself — verify holders, enforce rules, and purge the rest.</p>
+    </div>
+
+    <div class="bento">
+      <div class="card large reveal">
+        <div class="ico-box">🔐</div>
+        <h3>Token-Based Access</h3>
+        <p>Set a minimum token balance and let Gatekept handle the rest. Members prove ownership of any ERC-20, SPL, or Jetton holding to unlock the gate — no bots in your wallet, ever.</p>
+        <div class="big-vis">
+          <span class="mini-chip">ERC-20</span>
+          <span class="mini-chip">SPL Tokens</span>
+          <span class="mini-chip">TON Jettons</span>
+          <span class="mini-chip">Min Balance Rules</span>
+          <span class="mini-chip">Per-group Config</span>
+        </div>
+      </div>
+
+      <div class="card reveal">
+        <div class="ico-box">💵</div>
+        <h3>USD-Denominated Gates</h3>
+        <p>Gate by dollar value, not raw token count. Thresholds auto-adjust to live price.</p>
+      </div>
+
+      <div class="card reveal">
+        <div class="ico-box">🛡️</div>
+        <h3>Secure Wallet Verification</h3>
+        <p>Self-transfer proof-of-ownership. No signing, no seed phrases, no custody risk.</p>
+      </div>
+
+      <div class="card reveal">
+        <div class="ico-box">✅</div>
+        <h3>Admin Whitelisting</h3>
+        <p>Hand-pick members who bypass the gate — team, partners, and VIPs stay in.</p>
+      </div>
+
+      <div class="card reveal">
+        <div class="ico-box">🧹</div>
+        <h3>Automatic Purging</h3>
+        <p>Daily re-checks remove members who fall below the threshold. Set it and forget it.</p>
+      </div>
+
+      <div class="card reveal">
+        <div class="ico-box">🌐</div>
+        <h3>Multichain Support</h3>
+        <p>Ethereum, Base, Solana, and TON — gate one community across every chain at once.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how">
+  <div class="container">
+    <div class="sec-head reveal">
+      <div class="accent-line"></div>
+      <h2>Live in <span class="grad-text">about two minutes</span></h2>
+      <p>Four steps from zero to a fully gated community.</p>
+    </div>
+
+    <div class="stepper">
+      <div class="step reveal">
+        <div class="step-orb">1</div>
+        <div class="step-connector"></div>
+        <div class="step-card">
+          <h3>Add the bot to your group</h3>
+          <p>Invite Gatekept to your Telegram group and grant it admin rights to manage members.</p>
+        </div>
+      </div>
+      <div class="step reveal">
+        <div class="step-orb">2</div>
+        <div class="step-connector"></div>
+        <div class="step-card">
+          <h3>Configure your gate</h3>
+          <p>Pick a chain, paste your token contract, and set a minimum balance or USD threshold.</p>
+        </div>
+      </div>
+      <div class="step reveal">
+        <div class="step-orb">3</div>
+        <div class="step-connector"></div>
+        <div class="step-card">
+          <h3>Members verify wallets</h3>
+          <p>Each member proves ownership with a non-custodial self-transfer — no signatures required.</p>
+        </div>
+      </div>
+      <div class="step reveal">
+        <div class="step-orb">4</div>
+        <div class="step-connector"></div>
+        <div class="step-card">
+          <h3>Automatic enforcement</h3>
+          <p>Gatekept runs a daily Purge, removing anyone who no longer holds — fully hands-off.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CHAINS -->
+<section id="chains">
+  <div class="container">
+    <div class="sec-head reveal">
+      <div class="accent-line"></div>
+      <h2>Built for <span class="grad-text">every major chain</span></h2>
+      <p>Native verification across EVM and non-EVM ecosystems.</p>
+    </div>
+
+    <div class="chain-track">
+      <div class="chain-card reveal">
+        <div class="orb" style="background:linear-gradient(135deg,#627eea,#8aa3ff)">Ξ</div>
+        <h3>Ethereum</h3>
+        <p>ERC-20 & ERC-721 gating</p>
+      </div>
+      <div class="chain-card reveal">
+        <div class="orb" style="background:linear-gradient(135deg,#0052ff,#4d8bff)">B</div>
+        <h3>Base</h3>
+        <p>Low-fee L2 verification</p>
+      </div>
+      <div class="chain-card reveal">
+        <div class="orb" style="background:linear-gradient(135deg,#14f195,#9945ff)">◎</div>
+        <h3>Solana</h3>
+        <p>SPL token gating</p>
+      </div>
+      <div class="chain-card reveal">
+        <div class="orb" style="background:linear-gradient(135deg,#0098ea,#33c2ff)">💎</div>
+        <h3>TON</h3>
+        <p>Jetton-based access</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <div class="container">
+    <div class="cta-glass reveal">
+      <h2>Ready to gate your community?</h2>
+      <p>Get set up in minutes with zero custody risk. Reach out and we'll walk you through it.</p>
+      <a class="btn-primary" href="https://web.telegram.org/k/#@derivativesmonkey" target="_blank" rel="noopener">
+        Contact us on Telegram →
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="container">
+    <div class="logo"><span class="logo-dot"></span>Gatekept</div>
+    <p>Non-custodial token-gating for Telegram. Multichain by design.</p>
+    <p style="margin-top:10px;font-size:0.82rem;opacity:0.7">© 2026 Gatekept.net — All rights reserved.</p>
+  </div>
+</footer>
+
+<script>
+  /* ===== Scroll reveal ===== */
+  const revealObserver = new IntersectionObserver((entries) => {
+    entries.forEach((e) => {
+      if (e.isIntersecting) {
+        e.target.classList.add('in');
+        revealObserver.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.15 });
+
+  document.querySelectorAll('.reveal, .sec-head').forEach((el) => revealObserver.observe(el));
+
+  /* ===== Animated counters ===== */
+  function animateCount(el) {
+    if (el.dataset.text) return; // static text stat
+    const target = parseFloat(el.dataset.target);
+    const prefix = el.dataset.prefix || '';
+    const suffix = el.dataset.suffix || '';
+    const dur = 1400;
+    const start = performance.now();
+    function frame(now) {
+      const p = Math.min((now - start) / dur, 1);
+      const eased = 1 - Math.pow(1 - p, 3);
+      const val = Math.round(eased * target);
+      el.textContent = prefix + val + suffix;
+      if (p < 1) requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  const statObserver = new IntersectionObserver((entries) => {
+    entries.forEach((e) => {
+      if (e.isIntersecting) {
+        e.target.querySelectorAll('.num').forEach(animateCount);
+        statObserver.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.5 });
+  const statsEl = document.getElementById('stats');
+  if (statsEl) statObserver.observe(statsEl);
+
+  /* ===== Magnetic card tilt ===== */
+  const isTouch = window.matchMedia('(hover: none)').matches;
+  if (!isTouch) {
+    document.querySelectorAll('.card').forEach((card) => {
+      card.addEventListener('mousemove', (e) => {
+        const r = card.getBoundingClientRect();
+        const x = e.clientX - r.left;
+        const y = e.clientY - r.top;
+        const rotX = ((y / r.height) - 0.5) * -8;
+        const rotY = ((x / r.width) - 0.5) * 8;
+        card.style.transform = `perspective(900px) rotateX(${rotX}deg) rotateY(${rotY}deg) scale(1.02)`;
+        card.style.setProperty('--mx', x + 'px');
+        card.style.setProperty('--my', y + 'px');
+      });
+      card.addEventListener('mouseleave', () => {
+        card.style.transform = 'perspective(900px) rotateX(0) rotateY(0) scale(1)';
+      });
+    });
+  }
+
+  /* ===== Mobile nav toggle (simple scroll to features) ===== */
+  document.querySelector('.nav-toggle')?.addEventListener('click', () => {
+    document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' });
+  });
+</script>
+
+</body>
+</html>
