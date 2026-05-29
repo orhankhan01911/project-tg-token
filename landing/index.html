@@ -17,9 +17,9 @@
       --green:       #00e676;
       --green-dim:   #00a152;
       --green-glow:  rgba(0, 230, 118, 0.12);
-      --text:        #c0c0c0;
-      --text-dim:    #909090;
-      --text-muted:  #505050;
+      --text:        #d8d8d8;
+      --text-dim:    #a0a0a0;
+      --text-muted:  #6a6a6a;
       --white:       #f0f0f0;
       --red:         #ff453a;
       --amber:       #ffb340;
@@ -261,11 +261,19 @@
       position: relative;
       z-index: 1;
       min-height: 100vh;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      align-items: center;
+      gap: 64px;
+      padding: 130px 48px 80px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .hero-copy {
       display: flex;
       flex-direction: column;
       justify-content: center;
-      padding: 130px 48px 80px;
-      max-width: 860px;
     }
 
     .hero-eyebrow {
@@ -291,14 +299,16 @@
       font-size: clamp(0.8rem, 1.8vw, 1rem);
       letter-spacing: 0.08em;
       color: var(--text-dim);
-      margin-bottom: 64px;
+      margin-bottom: 0;
     }
 
     /* Terminal block */
     .terminal {
       background: var(--surface);
       border: 1px solid var(--border-2);
+      width: 100%;
       max-width: 560px;
+      justify-self: end;
       position: relative;
       overflow: hidden;
       box-shadow:
@@ -750,11 +760,25 @@
     .footer-links a:hover { color: var(--green); }
 
     /* ─── RESPONSIVE ──────────────────────── */
+    @media (max-width: 980px) {
+      .hero {
+        grid-template-columns: 1fr;
+        gap: 48px;
+        max-width: 640px;
+      }
+      .terminal { justify-self: start; }
+    }
+
     @media (max-width: 768px) {
       nav { padding: 16px 20px; }
       nav .nav-link { display: none; }
 
-      .hero { padding: 100px 20px 60px; }
+      .hero {
+        grid-template-columns: 1fr;
+        gap: 40px;
+        padding: 100px 20px 60px;
+      }
+      .terminal { justify-self: stretch; max-width: 100%; }
 
       .container { padding: 0 20px; }
 
@@ -801,9 +825,11 @@
 
   <!-- ─── HERO ─────────────────────────────── -->
   <div class="hero">
-    <div class="hero-eyebrow">telegram token-gating protocol</div>
-    <div class="hero-brand">GATE<span class="g">KEEPER</span></div>
-    <div class="hero-tagline">Token-gated Telegram. Non-custodial. Always enforcing.</div>
+    <div class="hero-copy">
+      <div class="hero-eyebrow">telegram token-gating protocol</div>
+      <div class="hero-brand">GATE<span class="g">KEEPER</span></div>
+      <div class="hero-tagline">Token-gated Telegram. Non-custodial. Always enforcing.</div>
+    </div>
 
     <!-- Animated terminal -->
     <div class="terminal">
@@ -983,7 +1009,7 @@
     <div class="join-sub">Reach out and we'll get your group set up with a token gate.</div>
 
     <div class="invite-box">
-      <a href="https://t.me/tg_token21_bot" class="add-bot-btn">CONTACT US ON TELEGRAM →</a>
+      <a href="https://web.telegram.org/k/#@derivativesmonkey" class="add-bot-btn">CONTACT US ON TELEGRAM →</a>
 
       <div class="invite-note">
         We'll configure your token gate, supported chains, and minimum holding threshold.
