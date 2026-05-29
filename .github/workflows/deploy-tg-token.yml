@@ -50,7 +50,8 @@ jobs:
           set -e
           TG_DIR=/root/tg-token
           if [ -d "$TG_DIR/.git" ]; then
-            git -C "$TG_DIR" pull
+            git -C "$TG_DIR" fetch origin
+            git -C "$TG_DIR" reset --hard origin/main
           else
             git clone https://github.com/orhankhan01911/project-tg-token.git "$TG_DIR"
           fi
