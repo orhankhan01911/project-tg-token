@@ -77,14 +77,48 @@ jobs:
           $SSH "cd /root/tg-token/infra && docker compose -f docker-compose.prod.yml up -d --remove-orphans"
 
           # ── 5. Deploy landing page + Caddy site block ─────────────────────────
-          echo "==> deploying landing page to /srv/gatekept-landing"
-          $SSH "mkdir -p /srv/gatekept-landing /etc/caddy/sites"
-          $SSH "cp /root/tg-token/landing/index.html /srv/gatekept-landing/index.html"
-          $SSH "cp /root/tg-token/infra/Caddyfile.gatekept /etc/caddy/sites/gatekept.conf"
+          # Self-contained: tg-token owns its gatekept.net site block, dropped into
+          # /etc/caddy/sites/ and wired into the live systemd Caddy via an `import`
+          # in /etc/caddy/Caddyfile. Caddy on this server runs as a systemd service
+          # (user `caddy`), config at /etc/caddy/Caddyfile — NOT a btcV2 repo path.
+          # This block is idempotent and decoupled from btcV2's deploy.
+          echo "==> deploying landing page + caddy site block"
+          $SSH "bash -s" << 'REMOTE_CADDY'
+          set -e
+          mkdir -p /srv/gatekept-landing /etc/caddy/sites
+          cp /root/tg-token/landing/index.html /srv/gatekept-landing/index.html
+          cp /root/tg-token/infra/Caddyfile.gatekept /etc/caddy/sites/gatekept.conf
 
-          # Reload Caddy — tg-token owns its own site block, independent of btcV2
-          $SSH "caddy reload --config /etc/caddy/Caddyfile 2>/dev/null || systemctl reload caddy 2>/dev/null || true"
+          # Ensure the live Caddyfile imports our site block (idempotent).
+          CF=/etc/caddy/Caddyfile
+          if ! grep -q '/etc/caddy/sites/\*.conf' "$CF"; then
+            printf '\n# tg-token / gatekept.net — site blocks in /etc/caddy/sites (project-tg-token).\nimport /etc/caddy/sites/*.conf\n' >> "$CF"
+            echo "==> appended import to $CF"
+          fi
+
+          # Caddy runs as user `caddy`; a root-owned log file blocks reload. Pre-create
+          # the gatekept log owned by caddy so `systemctl reload` never fails on perms.
+          mkdir -p /var/log/caddy
+          touch /var/log/caddy/gatekept-access.log
+          chown caddy:caddy /var/log/caddy/gatekept-access.log
+
+          # Validate before reload so a bad block never takes down the live config.
+          caddy validate --config "$CF" >/dev/null
+          # systemctl reload runs caddy as the `caddy` user (correct log perms).
+          systemctl reload caddy
+          REMOTE_CADDY
           echo "==> landing deployed and Caddy reloaded"
+
+          # Verify the landing page actually serves (allow a few tries for TLS cert
+          # provisioning on first publish). Loopback to the host's own Caddy via Host header.
+          echo "==> verifying gatekept.net serves 200"
+          LANDING_OK=0
+          for i in $(seq 1 6); do
+            CODE=$($SSH "curl -sS -o /dev/null -w '%{http_code}' --max-time 20 https://gatekept.net" 2>/dev/null || echo 000)
+            if [ "$CODE" = "200" ]; then LANDING_OK=1; echo "✅ gatekept.net -> 200"; break; fi
+            echo "   gatekept.net -> $CODE (retry $i)"; sleep 10
+          done
+          [ "$LANDING_OK" = "1" ] || echo "⚠️  gatekept.net not 200 yet (cert may still be provisioning)"
 
           # ── 6. Verify bot alive ───────────────────────────────────────────────
           echo "==> polling for telegram_connected (up to 60s)"
