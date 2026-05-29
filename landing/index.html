@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GATEKEEPER — Token-Gated Telegram Communities</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Fira+Code:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:          #080808;
+      --surface:     #0f0f0f;
+      --surface-2:   #141414;
+      --border:      #1c1c1c;
+      --border-2:    #222222;
+      --green:       #00e676;
+      --green-dim:   #00a152;
+      --green-glow:  rgba(0, 230, 118, 0.12);
+      --text:        #c0c0c0;
+      --text-dim:    #909090;
+      --text-muted:  #505050;
+      --white:       #f0f0f0;
+      --red:         #ff453a;
+      --amber:       #ffb340;
+      --font:        'Share Tech Mono', 'Fira Code', 'Courier New', monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* CRT scanline overlay */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 3px,
+        rgba(0,0,0,0.04) 3px,
+        rgba(0,0,0,0.04) 4px
+      );
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    /* ─── Falling pattern background ────── */
+    .falling-bg {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .falling-canvas {
+      position: absolute;
+      inset: 0;
+      background-color: #080808;
+      background-image:
+        radial-gradient(4px 100px at 0px 235px, #00e676, transparent),
+        radial-gradient(4px 100px at 300px 235px, #00e676, transparent),
+        radial-gradient(1.5px 1.5px at 150px 117.5px, #00e676 100%, transparent 150%),
+        radial-gradient(4px 100px at 0px 252px, #00e676, transparent),
+        radial-gradient(4px 100px at 300px 252px, #00e676, transparent),
+        radial-gradient(1.5px 1.5px at 150px 126px, #00e676 100%, transparent 150%),
+        radial-gradient(4px 100px at 0px 150px, #00e676, transparent),
+        radial-gradient(4px 100px at 300px 150px, #00e676, transparent),
+        radial-gradient(1.5px 1.5px at 150px 75px, #00e676 100%, transparent 150%),
+        radial-gradient(4px 100px at 0px 253px, #00e676, transparent),
+        radial-gradient(4px 100px at 300px 253px, #00e676, transparent),
+        radial-gradient(1.5px 1.5px at 150px 126.5px, #00e676 100%, transparent 150%),
+        radial-gradient(4px 100px at 0px 204px, #00e676, transparent),
+        radial-gradient(4px 100px at 300px 204px, #00e676, transparent),
+        radial-gradient(1.5px 1.5px at 150px 102px, #00e676 100%, transparent 150%),
+        radial-gradient(4px 100px at 0px 134px, #00e676, transparent),
+        radial-gradient(4px 100px at 300px 134px, #00e676, transparent),
+        radial-gradient(1.5px 1.5px at 150px 67px, #00e676 100%, transparent 150%),
+        radial-gradient(4px 100px at 0px 179px, #00e676, transparent),
+        radial-gradient(4px 100px at 300px 179px, #00e676, transparent),
+        radial-gradient(1.5px 1.5px at 150px 89.5px, #00e676 100%, transparent 150%),
+        radial-gradient(4px 100px at 0px 299px, #00e676, transparent),
+        radial-gradient(4px 100px at 300px 299px, #00e676, transparent),
+        radial-gradient(1.5px 1.5px at 150px 149.5px, #00e676 100%, transparent 150%),
+        radial-gradient(4px 100px at 0px 215px, #00e676, transparent),
+        radial-gradient(4px 100px at 300px 215px, #00e676, transparent),
+        radial-gradient(1.5px 1.5px at 150px 107.5px, #00e676 100%, transparent 150%),
+        radial-gradient(4px 100px at 0px 281px, #00e676, transparent),
+        radial-gradient(4px 100px at 300px 281px, #00e676, transparent),
+        radial-gradient(1.5px 1.5px at 150px 140.5px, #00e676 100%, transparent 150%),
+        radial-gradient(4px 100px at 0px 158px, #00e676, transparent),
+        radial-gradient(4px 100px at 300px 158px, #00e676, transparent),
+        radial-gradient(1.5px 1.5px at 150px 79px, #00e676 100%, transparent 150%),
+        radial-gradient(4px 100px at 0px 210px, #00e676, transparent),
+        radial-gradient(4px 100px at 300px 210px, #00e676, transparent),
+        radial-gradient(1.5px 1.5px at 150px 105px, #00e676 100%, transparent 150%);
+      background-size:
+        300px 235px, 300px 235px, 300px 235px,
+        300px 252px, 300px 252px, 300px 252px,
+        300px 150px, 300px 150px, 300px 150px,
+        300px 253px, 300px 253px, 300px 253px,
+        300px 204px, 300px 204px, 300px 204px,
+        300px 134px, 300px 134px, 300px 134px,
+        300px 179px, 300px 179px, 300px 179px,
+        300px 299px, 300px 299px, 300px 299px,
+        300px 215px, 300px 215px, 300px 215px,
+        300px 281px, 300px 281px, 300px 281px,
+        300px 158px, 300px 158px, 300px 158px,
+        300px 210px, 300px 210px, 300px 210px;
+      background-repeat: repeat;
+      animation: falling-anim 150s linear infinite, fadein-pattern 0.3s ease forwards;
+      opacity: 0;
+    }
+
+    /* Blur + dot overlay (matches component's overlay div) */
+    .falling-overlay {
+      position: absolute;
+      inset: 0;
+      backdrop-filter: blur(1em);
+      background-image: radial-gradient(circle at 50% 50%, transparent 0, transparent 2px, #080808 2px);
+      background-size: 8px 8px;
+    }
+
+    /* Gradient mask so content sections remain dark/readable */
+    .falling-fade {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse at 50% 0%, transparent 0%, rgba(8,8,8,0.55) 65%),
+        linear-gradient(to bottom, transparent 40%, #080808 100%);
+    }
+
+    @keyframes fadein-pattern {
+      from { opacity: 0; }
+      to   { opacity: 0.88; }
+    }
+
+    @keyframes falling-anim {
+      from {
+        background-position:
+          0px 220px, 3px 220px, 151.5px 337.5px,
+          25px 24px, 28px 24px, 176.5px 150px,
+          50px 16px, 53px 16px, 201.5px 91px,
+          75px 224px, 78px 224px, 226.5px 230.5px,
+          100px 19px, 103px 19px, 251.5px 121px,
+          125px 120px, 128px 120px, 276.5px 187px,
+          150px 31px, 153px 31px, 301.5px 120.5px,
+          175px 235px, 178px 235px, 326.5px 384.5px,
+          200px 121px, 203px 121px, 351.5px 228.5px,
+          225px 224px, 228px 224px, 376.5px 364.5px,
+          250px 26px, 253px 26px, 401.5px 105px,
+          275px 75px, 278px 75px, 426.5px 180px;
+      }
+      to {
+        background-position:
+          0px 6800px, 3px 6800px, 151.5px 6917.5px,
+          25px 13632px, 28px 13632px, 176.5px 13758px,
+          50px 5416px, 53px 5416px, 201.5px 5491px,
+          75px 17175px, 78px 17175px, 226.5px 17301.5px,
+          100px 5119px, 103px 5119px, 251.5px 5221px,
+          125px 8428px, 128px 8428px, 276.5px 8495px,
+          150px 9876px, 153px 9876px, 301.5px 9965.5px,
+          175px 13391px, 178px 13391px, 326.5px 13540.5px,
+          200px 14741px, 203px 14741px, 351.5px 14848.5px,
+          225px 18770px, 228px 18770px, 376.5px 18910.5px,
+          250px 5082px, 253px 5082px, 401.5px 5161px,
+          275px 6375px, 278px 6375px, 426.5px 6480px;
+      }
+    }
+
+    /* ─── NAV ─────────────────────────────── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 48px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(8,8,8,0.88);
+      backdrop-filter: blur(12px);
+    }
+
+    .logo {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+
+    .logo-text {
+      font-size: 1.05rem;
+      letter-spacing: 0.45em;
+      color: var(--white);
+    }
+
+    .logo-text em {
+      color: var(--green);
+      font-style: normal;
+      text-shadow: 0 0 24px rgba(0,230,118,0.5);
+    }
+
+    .logo-badge {
+      font-size: 0.6rem;
+      letter-spacing: 0.15em;
+      color: var(--text-dim);
+      border: 1px solid var(--border-2);
+      padding: 2px 6px;
+    }
+
+    .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 0.65rem;
+      letter-spacing: 0.2em;
+      color: var(--text-dim);
+    }
+
+    .status-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 6px var(--green);
+      animation: pulse 2.4s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.35; transform: scale(0.8); }
+    }
+
+    .nav-link {
+      font-size: 0.72rem;
+      letter-spacing: 0.15em;
+      color: var(--text-dim);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    .nav-link:hover { color: var(--green); }
+
+    /* ─── HERO ────────────────────────────── */
+    .hero {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 130px 48px 80px;
+      max-width: 860px;
+    }
+
+    .hero-eyebrow {
+      font-size: 0.7rem;
+      letter-spacing: 0.3em;
+      color: var(--green-dim);
+      margin-bottom: 24px;
+    }
+
+    .hero-eyebrow::before { content: '// '; color: var(--text-muted); }
+
+    .hero-brand {
+      font-size: clamp(3.2rem, 9vw, 6.5rem);
+      letter-spacing: 0.18em;
+      color: var(--white);
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+
+    .hero-brand .g { color: var(--green); text-shadow: 0 0 40px rgba(0,230,118,0.35); }
+
+    .hero-tagline {
+      font-size: clamp(0.8rem, 1.8vw, 1rem);
+      letter-spacing: 0.08em;
+      color: var(--text-dim);
+      margin-bottom: 64px;
+    }
+
+    /* Terminal block */
+    .terminal {
+      background: var(--surface);
+      border: 1px solid var(--border-2);
+      max-width: 560px;
+      position: relative;
+      overflow: hidden;
+      box-shadow:
+        0 0 0 1px rgba(0,230,118,0.04),
+        0 20px 60px rgba(0,0,0,0.5),
+        inset 0 1px 0 rgba(255,255,255,0.02);
+    }
+
+    .term-titlebar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface-2);
+    }
+
+    .term-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .term-dot.red   { background: #ff5f57; }
+    .term-dot.amber { background: #febc2e; }
+    .term-dot.green { background: #28c840; }
+
+    .term-title {
+      font-size: 0.65rem;
+      letter-spacing: 0.2em;
+      color: var(--text-muted);
+      margin-left: 8px;
+    }
+
+    .term-body {
+      padding: 20px 20px 24px;
+      min-height: 160px;
+    }
+
+    .term-line {
+      font-size: 0.82rem;
+      line-height: 1.9;
+      display: flex;
+      flex-wrap: wrap;
+    }
+
+    .term-line.hidden { display: none; }
+
+    .prompt { color: var(--green); margin-right: 8px; flex-shrink: 0; }
+    .cmd    { color: var(--white); }
+
+    .term-output {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      padding-left: 20px;
+      line-height: 1.8;
+    }
+
+    .term-output.hidden { display: none; }
+
+    .ok  { color: var(--green); }
+    .err { color: var(--red); }
+    .warn{ color: var(--amber); }
+
+    .cursor {
+      display: inline-block;
+      width: 7px;
+      height: 14px;
+      background: var(--green);
+      vertical-align: middle;
+      margin-left: 2px;
+      animation: blink 1.1s step-end infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    /* ─── LAYOUT HELPERS ──────────────────── */
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 0 48px;
+    }
+
+    .rule {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 0;
+    }
+
+    .section-tag {
+      font-size: 0.65rem;
+      letter-spacing: 0.3em;
+      color: var(--green);
+      margin-bottom: 14px;
+    }
+
+    .section-tag::before { content: '> '; color: var(--green-dim); }
+
+    h2 {
+      font-size: clamp(1.3rem, 3vw, 1.9rem);
+      font-weight: 400;
+      letter-spacing: 0.06em;
+      color: var(--white);
+      margin-bottom: 36px;
+      line-height: 1.4;
+    }
+
+    /* ─── ABOUT ───────────────────────────── */
+    .about {
+      padding: 90px 0;
+    }
+
+    .about-layout {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 56px;
+      align-items: start;
+    }
+
+    .about-text {
+      font-size: 0.875rem;
+      line-height: 2;
+      color: var(--text);
+    }
+
+    .about-text p + p { margin-top: 18px; }
+
+    .about-text strong {
+      color: var(--green);
+      font-weight: 400;
+    }
+
+    .about-text .sub {
+      margin-top: 28px;
+      padding: 16px;
+      border-left: 2px solid var(--green-dim);
+      background: var(--surface);
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      line-height: 1.9;
+    }
+
+    /* Stat cards */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+    }
+
+    .stat-card {
+      background: var(--bg);
+      padding: 26px 22px;
+    }
+
+    .stat-key {
+      font-size: 0.62rem;
+      letter-spacing: 0.25em;
+      color: var(--green);
+      margin-bottom: 10px;
+    }
+
+    .stat-val {
+      font-size: 2rem;
+      letter-spacing: 0.05em;
+      color: var(--white);
+      margin-bottom: 6px;
+      line-height: 1;
+    }
+
+    .stat-desc {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      line-height: 1.7;
+    }
+
+    /* ─── HOW IT WORKS ────────────────────── */
+    .how {
+      padding: 90px 0;
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0;
+    }
+
+    .step {
+      padding: 28px 24px 28px 0;
+      border-right: 1px solid var(--border);
+      padding-right: 28px;
+      margin-right: 28px;
+    }
+
+    .step:last-child {
+      border-right: none;
+      margin-right: 0;
+    }
+
+    .step-num {
+      font-size: 0.62rem;
+      letter-spacing: 0.2em;
+      color: var(--green);
+      margin-bottom: 10px;
+    }
+
+    .step-title {
+      font-size: 0.9rem;
+      color: var(--white);
+      margin-bottom: 10px;
+      letter-spacing: 0.05em;
+    }
+
+    .step-desc {
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      line-height: 1.85;
+    }
+
+    /* ─── JOIN / INVITE ───────────────────── */
+    .join {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 90px 48px;
+      text-align: center;
+      position: relative;
+      z-index: 1;
+    }
+
+    .join h2 { max-width: 500px; margin-left: auto; margin-right: auto; }
+
+    .join-sub {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      margin-top: -20px;
+      margin-bottom: 44px;
+      letter-spacing: 0.06em;
+    }
+
+    .invite-box {
+      max-width: 520px;
+      margin: 0 auto;
+    }
+
+    .invite-row {
+      display: flex;
+      border: 1px solid var(--border-2);
+      background: var(--bg);
+      transition: border-color 0.2s;
+    }
+
+    .invite-row:focus-within {
+      border-color: var(--green-dim);
+      box-shadow: 0 0 0 2px var(--green-glow);
+    }
+
+    .invite-prefix {
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      font-size: 0.85rem;
+      color: var(--green);
+      background: var(--surface-2);
+      border-right: 1px solid var(--border);
+      flex-shrink: 0;
+      user-select: none;
+    }
+
+    .invite-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      padding: 13px 16px;
+      font-family: var(--font);
+      font-size: 0.82rem;
+      color: var(--white);
+      min-width: 0;
+    }
+
+    .invite-input::placeholder { color: var(--text-muted); }
+
+    .invite-btn {
+      background: var(--green);
+      color: var(--bg);
+      border: none;
+      padding: 13px 22px;
+      font-family: var(--font);
+      font-size: 0.75rem;
+      letter-spacing: 0.12em;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background 0.15s;
+    }
+
+    .invite-btn:hover { background: var(--white); }
+    .invite-btn:active { background: var(--green-dim); }
+
+    .invite-err {
+      display: none;
+      font-size: 0.72rem;
+      color: var(--red);
+      margin-top: 10px;
+      letter-spacing: 0.05em;
+    }
+
+    .invite-err.show { display: block; }
+
+    .invite-note {
+      margin-top: 18px;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      letter-spacing: 0.05em;
+      line-height: 1.9;
+    }
+
+    .invite-note a {
+      color: var(--green-dim);
+      text-decoration: none;
+    }
+
+    .invite-note a:hover { color: var(--green); }
+
+    /* Divider line between note items */
+    .or-divider {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin: 28px 0;
+      color: var(--text-muted);
+      font-size: 0.7rem;
+      letter-spacing: 0.2em;
+    }
+
+    .or-divider::before,
+    .or-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .add-bot-btn {
+      display: inline-block;
+      border: 1px solid var(--border-2);
+      padding: 11px 28px;
+      font-family: var(--font);
+      font-size: 0.75rem;
+      letter-spacing: 0.15em;
+      color: var(--text-dim);
+      text-decoration: none;
+      transition: all 0.15s;
+    }
+
+    .add-bot-btn:hover {
+      border-color: var(--green-dim);
+      color: var(--green);
+    }
+
+    /* ─── CHAINS ──────────────────────────── */
+    .chains {
+      padding: 90px 0;
+    }
+
+    .chain-list {
+      display: flex;
+      gap: 0;
+      flex-wrap: wrap;
+      border: 1px solid var(--border);
+    }
+
+    .chain-item {
+      flex: 1;
+      min-width: 180px;
+      padding: 28px 24px;
+      border-right: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .chain-item:last-child { border-right: none; }
+
+    .chain-icon {
+      width: 32px;
+      height: 32px;
+      border: 1px solid var(--border-2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      color: var(--green);
+      flex-shrink: 0;
+    }
+
+    .chain-name {
+      font-size: 0.82rem;
+      color: var(--white);
+      letter-spacing: 0.1em;
+      margin-bottom: 2px;
+    }
+
+    .chain-detail {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      letter-spacing: 0.05em;
+    }
+
+    /* ─── FOOTER ──────────────────────────── */
+    footer {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 28px 48px;
+      border-top: 1px solid var(--border);
+      gap: 20px;
+    }
+
+    .footer-brand {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      letter-spacing: 0.2em;
+    }
+
+    .footer-brand strong { color: var(--green); font-weight: 400; }
+
+    .footer-links {
+      display: flex;
+      gap: 28px;
+    }
+
+    .footer-links a {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      letter-spacing: 0.12em;
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    .footer-links a:hover { color: var(--green); }
+
+    /* ─── RESPONSIVE ──────────────────────── */
+    @media (max-width: 768px) {
+      nav { padding: 16px 20px; }
+      nav .nav-link { display: none; }
+
+      .hero { padding: 100px 20px 60px; }
+
+      .container { padding: 0 20px; }
+
+      .about-layout { grid-template-columns: 1fr; gap: 40px; }
+      .stat-grid { grid-template-columns: 1fr 1fr; }
+
+      .steps { grid-template-columns: 1fr 1fr; gap: 28px; }
+      .step { border-right: none; margin-right: 0; border-bottom: 1px solid var(--border); padding-bottom: 24px; margin-bottom: 0; }
+      .step:nth-child(even) { border-right: none; }
+      .step:last-child { border-bottom: none; }
+
+      .join { padding: 60px 20px; }
+
+      .chain-item { min-width: 140px; }
+
+      footer { padding: 20px; flex-direction: column; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Falling pattern background -->
+  <div class="falling-bg">
+    <div class="falling-canvas"></div>
+    <div class="falling-overlay"></div>
+    <div class="falling-fade"></div>
+  </div>
+
+  <!-- ─── NAV ─────────────────────────────── -->
+  <nav>
+    <div class="logo">
+      <div class="logo-text">GATE<em>KEEPER</em></div>
+      <div class="logo-badge">BETA</div>
+    </div>
+    <div class="nav-right">
+      <div class="status-pill">
+        <div class="status-dot"></div>
+        SYSTEM ONLINE
+      </div>
+      <a href="#about" class="nav-link">ABOUT</a>
+      <a href="#join" class="nav-link">GET ACCESS</a>
+    </div>
+  </nav>
+
+  <!-- ─── HERO ─────────────────────────────── -->
+  <div class="hero">
+    <div class="hero-eyebrow">telegram token-gating protocol</div>
+    <div class="hero-brand">GATE<span class="g">KEEPER</span></div>
+    <div class="hero-tagline">Token-gated Telegram. Non-custodial. Always enforcing.</div>
+
+    <!-- Animated terminal -->
+    <div class="terminal">
+      <div class="term-titlebar">
+        <div class="term-dot red"></div>
+        <div class="term-dot amber"></div>
+        <div class="term-dot green"></div>
+        <div class="term-title">gatekeeper-agent // v0.1.0</div>
+      </div>
+      <div class="term-body">
+
+        <div class="term-line" id="line1">
+          <span class="prompt">$</span>
+          <span class="cmd" id="t1"></span>
+        </div>
+        <div class="term-output hidden" id="out1">
+          Connecting to Telegram API... <span class="ok">OK</span><br>
+          Loading chain verifiers... <span class="ok">OK</span>
+        </div>
+
+        <div class="term-line hidden" id="line2">
+          <span class="prompt">$</span>
+          <span class="cmd" id="t2"></span>
+        </div>
+        <div class="term-output hidden" id="out2">
+          <span class="ok">+</span> EVM (Ethereum, Base)<br>
+          <span class="ok">+</span> Solana<br>
+          <span class="ok">+</span> TON Network
+        </div>
+
+        <div class="term-line hidden" id="line3">
+          <span class="prompt">$</span>
+          <span class="cmd" id="t3"></span>
+        </div>
+        <div class="term-output hidden" id="out3">
+          wallet: verified &nbsp;<span class="ok">✓</span><br>
+          balance: <span class="ok">PASS</span>  access granted<br>
+          status: <span class="ok">GATEKEEPER APPROVED</span>
+        </div>
+
+        <div class="term-line hidden" id="line-cursor">
+          <span class="prompt">$</span>
+          <span class="cursor"></span>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── ABOUT ────────────────────────────── -->
+  <hr class="rule">
+  <section class="about" id="about">
+    <div class="container">
+      <div class="section-tag">what is gatekeeper</div>
+      <h2>Permissioned communities.<br>Verified by your wallet.</h2>
+      <div class="about-layout">
+        <div class="about-text">
+          <p>
+            <strong>GATEKEEPER</strong> is a non-custodial token-gating service for Telegram.
+            Community owners set a token threshold on any EVM, Solana, or TON asset
+            and the bot enforces it on every join request, automatically.
+          </p>
+          <p>
+            Verification runs via a <strong>self-transfer dust proof</strong>: you send a tiny
+            amount to your own address, proving wallet ownership on-chain. No browser extensions,
+            no seed phrases, no custody of funds.
+          </p>
+          <p>
+            Membership is <strong>continuously enforced</strong>. Sell your tokens or leave the group
+            and access is revoked on the next monthly sweep.
+            No manual moderation. No loopholes.
+          </p>
+          <div class="sub">
+            // Built for token communities that need real exclusivity. Not just an invite link anyone can forward.
+          </div>
+        </div>
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-key">CHAINS</div>
+            <div class="stat-val">3</div>
+            <div class="stat-desc">EVM, Solana, TON. One bot, all networks.</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-key">CUSTODY</div>
+            <div class="stat-val">0%</div>
+            <div class="stat-desc">We never touch keys, funds, or wallet connections</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-key">SETUP</div>
+            <div class="stat-val">2min</div>
+            <div class="stat-desc">Add bot, set token, share invite link</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-key">PURGE</div>
+            <div class="stat-val">AUTO</div>
+            <div class="stat-desc">Monthly sweeps remove non-compliant members</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── HOW IT WORKS ─────────────────────── -->
+  <hr class="rule">
+  <section class="how">
+    <div class="container">
+      <div class="section-tag">how it works</div>
+      <h2>Four steps. No seed phrases.<br>No browser extensions.</h2>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">01 // CLICK</div>
+          <div class="step-title">Use the invite link</div>
+          <div class="step-desc">The group owner shares a Telegram invite link. You click it to request entry.</div>
+        </div>
+        <div class="step">
+          <div class="step-num">02 // VERIFY</div>
+          <div class="step-title">Prove your wallet</div>
+          <div class="step-desc">Bot DMs you with a dust-transfer instruction. Send a micro-tx to yourself on any supported chain.</div>
+        </div>
+        <div class="step">
+          <div class="step-num">03 // GATE</div>
+          <div class="step-title">Balance check</div>
+          <div class="step-desc">We verify your on-chain balance against the group's token threshold in real time.</div>
+        </div>
+        <div class="step">
+          <div class="step-num">04 // ACCESS</div>
+          <div class="step-title">In or out</div>
+          <div class="step-desc">Pass → approved instantly. Fail → clear decline message with exactly what's needed.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── SUPPORTED CHAINS ──────────────────── -->
+  <hr class="rule">
+  <section class="chains">
+    <div class="container">
+      <div class="section-tag">supported chains</div>
+      <h2>Multi-chain from day one.</h2>
+      <div class="chain-list">
+        <div class="chain-item">
+          <div class="chain-icon">ETH</div>
+          <div>
+            <div class="chain-name">ETHEREUM</div>
+            <div class="chain-detail">ERC-20 tokens, mainnet</div>
+          </div>
+        </div>
+        <div class="chain-item">
+          <div class="chain-icon">BASE</div>
+          <div>
+            <div class="chain-name">BASE</div>
+            <div class="chain-detail">ERC-20 tokens, L2</div>
+          </div>
+        </div>
+        <div class="chain-item">
+          <div class="chain-icon">SOL</div>
+          <div>
+            <div class="chain-name">SOLANA</div>
+            <div class="chain-detail">SPL tokens, all mints</div>
+          </div>
+        </div>
+        <div class="chain-item">
+          <div class="chain-icon">TON</div>
+          <div>
+            <div class="chain-name">TON</div>
+            <div class="chain-detail">Jetton tokens</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── CONTACT ────────────────────────── -->
+  <div class="join" id="join">
+    <div class="section-tag">get started</div>
+    <h2>Want Gatekeeper<br>for your community?</h2>
+    <div class="join-sub">Reach out and we'll get your group set up with a token gate.</div>
+
+    <div class="invite-box">
+      <a href="https://t.me/tg_token21_bot" class="add-bot-btn">CONTACT US ON TELEGRAM →</a>
+
+      <div class="invite-note">
+        We'll configure your token gate, supported chains, and minimum holding threshold.
+        <br>Setup takes under 2 minutes.
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── FOOTER ───────────────────────────── -->
+  <footer>
+    <div class="footer-brand"><strong>GATEKEEPER</strong> // token-gated Telegram, non-custodial</div>
+    <div class="footer-links">
+      <a href="#">Docs</a>
+      <a href="#">GitHub</a>
+      <a href="#">Telegram</a>
+    </div>
+  </footer>
+
+  <script>
+    /* ─── Terminal typewriter ─── */
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+    async function type(elId, text, speed = 42) {
+      const el = document.getElementById(elId);
+      for (const ch of text) {
+        el.textContent += ch;
+        await sleep(speed + Math.random() * 28);
+      }
+    }
+
+    function show(id) {
+      const el = document.getElementById(id);
+      if (el) el.classList.remove('hidden');
+    }
+
+    async function runTerminal() {
+      await sleep(600);
+
+      // cmd 1
+      await type('t1', 'gatekeeper --init', 44);
+      await sleep(280);
+      show('out1');
+      await sleep(700);
+
+      // cmd 2
+      show('line2');
+      await type('t2', 'gatekeeper verify --chains all', 40);
+      await sleep(350);
+      show('out2');
+      await sleep(800);
+
+      // cmd 3
+      show('line3');
+      await type('t3', 'gatekeeper gate --check-user @you', 38);
+      await sleep(320);
+      show('out3');
+      await sleep(250);
+
+      // idle cursor
+      show('line-cursor');
+    }
+
+    runTerminal();
+
+  </script>
+</body>
+</html>

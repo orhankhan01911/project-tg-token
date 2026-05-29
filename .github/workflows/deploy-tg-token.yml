@@ -14,6 +14,14 @@ name: deploy-tg-token
 #   TG_TOKEN_HELIUS_KEY
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - 'Dockerfile'
+      - 'pyproject.toml'
+      - 'infra/**'
+      - 'landing/**'
   workflow_dispatch:
 
 jobs:
@@ -68,16 +76,35 @@ jobs:
           echo "==> starting compose stack"
           $SSH "cd /root/tg-token/infra && docker compose -f docker-compose.prod.yml up -d --remove-orphans"
 
-          # ── 5. Verify bot alive ───────────────────────────────────────────────
-          echo "==> waiting 12s for bot to connect..."
-          sleep 12
+          # ── 5. Deploy landing page ────────────────────────────────────────────
+          echo "==> deploying landing page to /srv/gatekept-landing"
+          $SSH "mkdir -p /srv/gatekept-landing"
+          $SSH "cp /root/tg-token/landing/index.html /srv/gatekept-landing/index.html"
+
+          # Reload Caddy so the gatekept.net block picks up the files
+          $SSH "caddy reload --config /root/project-btcV2/infra/Caddyfile 2>/dev/null || systemctl reload caddy 2>/dev/null || true"
+          echo "==> landing deployed"
+
+          # ── 6. Verify bot alive ───────────────────────────────────────────────
+          echo "==> polling for telegram_connected (up to 60s)"
+          CONNECTED=0
+          for i in $(seq 1 12); do
+            if $SSH "docker logs --since 90s tg-token-bot 2>&1 | grep -q 'telegram_connected'"; then
+              CONNECTED=1; break
+            fi
+            STATE=$($SSH "docker inspect -f '{{.State.Status}}' tg-token-bot 2>/dev/null || echo missing")
+            if [ "$STATE" != "running" ]; then
+              echo "❌ container not running (state=$STATE)"; break
+            fi
+            sleep 5
+          done
 
           echo "==> recent logs"
           $SSH "docker logs --tail=50 tg-token-bot"
 
-          $SSH "docker logs tg-token-bot 2>&1 | grep -q 'bot_starting'" \
-            && echo "✅ Bot is alive and polling Telegram" \
-            || (echo "❌ bot_starting not found — check logs above" && exit 1)
+          [ "$CONNECTED" = "1" ] \
+            && echo "✅ Bot connected to Telegram" \
+            || (echo "❌ telegram_connected not seen in 60s — check logs above" && exit 1)
 
           rm -f "$KEY_FILE"
 
