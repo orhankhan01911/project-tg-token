@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Gatekept — Token-Gated Telegram Communities</title>
   <meta name="description" content="Lock your Telegram communities with on-chain token gates. Non-custodial. Multi-chain. Always enforcing.">
-  <meta name="theme-color" content="#070604">
+  <meta name="theme-color" content="#111844">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,22 +13,26 @@
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg:           #070604;
-      --bg-2:         #0d0b08;
-      --surface:      #110f0a;
-      --surface-2:    #1a1710;
-      --border:       rgba(212,160,23,0.18);
-      --border-2:     rgba(212,160,23,0.08);
-      --amber:        #d4a017;
-      --amber-bright: #f0b429;
-      --amber-dim:    #a07810;
-      --amber-glow:   rgba(212,160,23,0.12);
-      --orange:       #f97316;
-      --yellow:       #fbbf24;
-      --text:         #e8e0d0;
-      --text-dim:     #a89880;
-      --text-muted:   #5a5040;
-      --white:        #f5f0e8;
+      --bg:           #111844;
+      --bg-2:         #0e1538;
+      --surface:      #172054;
+      --surface-2:    #1e2a66;
+      --border:       rgba(114,136,174,0.25);
+      --border-2:     rgba(114,136,174,0.12);
+      --amber:        #7288ae;
+      --amber-bright: #8fa4c8;
+      --amber-dim:    #4b5694;
+      --amber-glow:   rgba(75,86,148,0.2);
+      --orange:       #4b5694;
+      --yellow:       #eae0cf;
+      --text:         #eae0cf;
+      --text-dim:     rgba(234,224,207,0.6);
+      --text-muted:   rgba(234,224,207,0.3);
+      --white:        #eae0cf;
+      --accent:       #4b5694;
+      --accent-bright:#5f74b0;
+      --steel:        #7288ae;
+      --cream:        #eae0cf;
       --font-display: 'Syne', sans-serif;
       --font-body:    'DM Sans', sans-serif;
       --font-mono:    'JetBrains Mono', monospace;
@@ -51,7 +55,7 @@
       content: '';
       position: fixed;
       inset: 0;
-      background-image: radial-gradient(circle, rgba(212,160,23,0.07) 1px, transparent 1px);
+      background-image: radial-gradient(circle, rgba(114,136,174,0.12) 1px, transparent 1px);
       background-size: 28px 28px;
       pointer-events: none;
       z-index: 0;
@@ -61,7 +65,7 @@
       content: '';
       position: fixed;
       inset: 0;
-      background: radial-gradient(ellipse at 50% 0%, transparent 40%, rgba(7,6,4,0.75) 100%);
+      background: radial-gradient(ellipse at 50% 0%, transparent 40%, rgba(17,24,68,0.7) 100%);
       pointer-events: none;
       z-index: 0;
     }
@@ -86,8 +90,8 @@
       display: inline-flex;
       align-items: center;
       gap: 10px;
-      background: var(--amber);
-      color: var(--bg);
+      background: #4b5694;
+      color: #eae0cf;
       font-family: var(--font-display);
       font-size: 14px;
       font-weight: 700;
@@ -102,8 +106,8 @@
       min-height: 44px;
     }
     .btn-primary:hover {
-      background: var(--amber-bright);
-      box-shadow: 0 0 32px rgba(212,160,23,0.4);
+      background: #5f74b0;
+      box-shadow: 0 0 28px rgba(75,86,148,0.5);
       transform: translateY(-1px);
     }
 
@@ -112,7 +116,7 @@
       align-items: center;
       gap: 10px;
       background: transparent;
-      color: var(--amber);
+      color: var(--cream);
       font-family: var(--font-display);
       font-size: 14px;
       font-weight: 700;
@@ -127,8 +131,8 @@
       min-height: 44px;
     }
     .btn-secondary:hover {
-      background: var(--amber-glow);
-      border-color: var(--amber);
+      background: rgba(114,136,174,0.12);
+      border-color: var(--steel);
       transform: translateY(-1px);
     }
 
@@ -138,7 +142,7 @@
       top: 0; left: 0; right: 0;
       z-index: 100;
       padding: 0 24px;
-      background: rgba(7,6,4,0.88);
+      background: rgba(17,24,68,0.92);
       backdrop-filter: blur(16px);
       border-bottom: 1px solid var(--border-2);
     }
@@ -158,7 +162,7 @@
     }
     .nav-logo-mark {
       width: 32px; height: 32px;
-      background: var(--amber);
+      background: #4b5694;
       border-radius: 6px;
       display: flex;
       align-items: center;
@@ -231,7 +235,7 @@
       border-right: 1px solid var(--border-2);
       flex-shrink: 0;
     }
-    .ticker-dot { color: var(--amber); font-size: 7px; }
+    .ticker-dot { color: #7288ae; font-size: 7px; }
     @keyframes ticker {
       from { transform: translateX(0); }
       to   { transform: translateX(-50%); }
@@ -251,7 +255,7 @@
       top: -60px; left: 50%;
       transform: translateX(-50%);
       width: 900px; height: 500px;
-      background: radial-gradient(ellipse at 50% 0%, rgba(212,160,23,0.1) 0%, transparent 65%);
+      background: radial-gradient(ellipse at 50% 0%, rgba(75,86,148,0.18) 0%, transparent 65%);
       pointer-events: none;
     }
     .hero-inner {
@@ -349,9 +353,9 @@
       font-size: 12px;
       line-height: 1.9;
     }
-    .pl .cmd { color: var(--amber-bright); }
+    .pl .cmd { color: #8fa4c8; }
     .pl .ok  { color: #4ade80; }
-    .pl .val { color: var(--yellow); }
+    .pl .val { color: #eae0cf; }
     .pl .addr { color: #93c5fd; }
     .pl .dim  { color: var(--text-muted); }
     .panel-hr { border: none; border-top: 1px solid var(--border-2); margin: 14px 0; }
@@ -419,7 +423,7 @@
       left: calc(12.5% + 24px);
       right: calc(12.5% + 24px);
       height: 1px;
-      background: linear-gradient(to right, var(--amber-dim), var(--amber), var(--amber-dim));
+      background: linear-gradient(to right, #4b5694, #7288ae, #4b5694);
       opacity: 0.35;
       pointer-events: none;
     }
@@ -466,7 +470,7 @@
     @media (max-width: 420px) { .steps-grid { grid-template-columns: 1fr; } }
 
     /* ── FEATURES ─────────────────────────────────────────── */
-    .features-bg { background: var(--bg-2); }
+    .features-bg { background: #0e1538; }
     .features-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -488,7 +492,7 @@
       position: absolute;
       top: 0; left: 0; right: 0;
       height: 2px;
-      background: linear-gradient(to right, var(--amber), var(--orange));
+      background: linear-gradient(to right, #4b5694, #7288ae);
       opacity: 0;
       transition: opacity 0.3s;
     }
@@ -594,7 +598,7 @@
       bottom: -80px; left: 50%;
       transform: translateX(-50%);
       width: 700px; height: 400px;
-      background: radial-gradient(ellipse at 50% 100%, rgba(249,115,22,0.07) 0%, transparent 70%);
+      background: radial-gradient(ellipse at 50% 100%, rgba(75,86,148,0.15) 0%, transparent 70%);
       pointer-events: none;
     }
     .cta-title {
@@ -611,9 +615,8 @@
       display: inline-flex;
       align-items: center;
       gap: 12px;
-      background: linear-gradient(135deg, var(--amber), var(--orange));
-      color: #07060490;
-      color: rgba(7,6,4,0.95);
+      background: linear-gradient(135deg, #4b5694, #7288ae);
+      color: #eae0cf;
       font-family: var(--font-display);
       font-size: 15px;
       font-weight: 800;
@@ -623,10 +626,10 @@
       border-radius: var(--radius);
       text-decoration: none;
       transition: opacity 0.2s, transform 0.2s, box-shadow 0.2s;
-      box-shadow: 0 8px 32px rgba(249,115,22,0.22);
+      box-shadow: 0 8px 32px rgba(75,86,148,0.35);
       min-height: 44px;
     }
-    .cta-btn:hover { opacity: 0.9; transform: translateY(-2px); box-shadow: 0 12px 40px rgba(249,115,22,0.32); }
+    .cta-btn:hover { opacity: 0.9; transform: translateY(-2px); box-shadow: 0 12px 40px rgba(75,86,148,0.45); }
     .cta-note { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); margin-top: 18px; letter-spacing: 0.08em; }
 
     /* ── FOOTER ───────────────────────────────────────────── */
@@ -668,9 +671,9 @@
       <a href="/" class="nav-logo">
         <div class="nav-logo-mark">
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <rect x="4" y="2" width="10" height="8" rx="1.5" stroke="#070604" stroke-width="1.8"/>
-            <rect x="2" y="8" width="14" height="8" rx="1.5" fill="#070604"/>
-            <circle cx="9" cy="12" r="1.5" fill="#d4a017"/>
+            <rect x="4" y="2" width="10" height="8" rx="1.5" stroke="#111844" stroke-width="1.8"/>
+            <rect x="2" y="8" width="14" height="8" rx="1.5" fill="#111844"/>
+            <circle cx="9" cy="12" r="1.5" fill="#eae0cf"/>
           </svg>
         </div>
         <span class="nav-logo-text">Gate<span>kept</span></span>
