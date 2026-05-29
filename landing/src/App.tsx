@@ -66,7 +66,18 @@ function Hl({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
-    <div className="bg-[#0c1235] min-h-screen overflow-x-hidden">
+    <div className="bg-[#0c1235] min-h-screen overflow-x-hidden relative">
+      {/* Full-page background mesh */}
+      <div className="fixed inset-0 z-0 pointer-events-none"
+        style={{
+          background: `
+            radial-gradient(ellipse 80% 40% at 50% 0%, rgba(75,86,148,0.3) 0%, transparent 60%),
+            radial-gradient(ellipse 60% 30% at 80% 50%, rgba(114,136,174,0.1) 0%, transparent 50%),
+            radial-gradient(ellipse 50% 30% at 10% 80%, rgba(75,86,148,0.08) 0%, transparent 50%),
+            radial-gradient(ellipse 70% 40% at 50% 100%, rgba(75,86,148,0.12) 0%, transparent 60%)
+          `
+        }}
+      />
       {/* NAV */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0c1235]/85 backdrop-blur-xl border-b border-white/[0.06]">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
