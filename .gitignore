@@ -25,3 +25,5 @@ dist/
 deploy.prod.sh
 *.env
 architecture_v3.html
+landing/dist/
+landing/node_modules/

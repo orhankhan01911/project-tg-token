@@ -82,11 +82,23 @@ jobs:
           # in /etc/caddy/Caddyfile. Caddy on this server runs as a systemd service
           # (user `caddy`), config at /etc/caddy/Caddyfile — NOT a btcV2 repo path.
           # This block is idempotent and decoupled from btcV2's deploy.
+          echo "==> building React landing page"
+          $SSH "bash -s" << 'REMOTE_BUILD'
+          set -e
+          cd /root/tg-token/landing
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+          nvm use 20 2>/dev/null || true
+          npm ci --prefer-offline 2>/dev/null || npm install
+          npm run build
+          echo "==> build complete, dist/ ready"
+          REMOTE_BUILD
+
           echo "==> deploying landing page + caddy site block"
           $SSH "bash -s" << 'REMOTE_CADDY'
           set -e
           mkdir -p /srv/gatekept-landing /etc/caddy/sites
-          cp /root/tg-token/landing/index.html /srv/gatekept-landing/index.html
+          cp -r /root/tg-token/landing/dist/. /srv/gatekept-landing/
           cp /root/tg-token/infra/Caddyfile.gatekept /etc/caddy/sites/gatekept.conf
 
           # Ensure the live Caddyfile imports our site block (idempotent).
