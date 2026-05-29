@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#080808">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <title>GATEKEEPER — Token-Gated Telegram Communities</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -54,12 +57,22 @@
     }
 
     /* ─── Falling pattern background ────── */
+    /* On mobile, skip the GPU-heavy animated bg entirely — plain #080808 shows through */
     .falling-bg {
+      display: none;
       position: fixed;
       inset: 0;
       z-index: 0;
       overflow: hidden;
       pointer-events: none;
+    }
+
+    @media (min-width: 640px) {
+      .falling-bg { display: block; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .falling-canvas { animation: none; }
     }
 
     .falling-canvas {
@@ -252,6 +265,10 @@
       color: var(--text-dim);
       text-decoration: none;
       transition: color 0.15s;
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
+      padding: 4px 6px;
     }
 
     .nav-link:hover { color: var(--green); }
@@ -261,6 +278,8 @@
       position: relative;
       z-index: 1;
       min-height: 100vh;
+      min-height: -webkit-fill-available;
+      min-height: 100svh;
       display: grid;
       grid-template-columns: 1fr 1fr;
       align-items: center;
@@ -286,11 +305,12 @@
     .hero-eyebrow::before { content: '// '; color: var(--text-muted); }
 
     .hero-brand {
-      font-size: clamp(3.2rem, 9vw, 6.5rem);
+      font-size: clamp(2rem, 8vw, 5rem);
       letter-spacing: 0.18em;
       color: var(--white);
       line-height: 1;
       margin-bottom: 6px;
+      word-break: break-word;
     }
 
     .hero-brand .g { color: var(--green); text-shadow: 0 0 40px rgba(0,230,118,0.35); }
@@ -413,12 +433,13 @@
     .section-tag::before { content: '> '; color: var(--green-dim); }
 
     h2 {
-      font-size: clamp(1.3rem, 3vw, 1.9rem);
+      font-size: clamp(1.4rem, 5vw, 2.5rem);
       font-weight: 400;
       letter-spacing: 0.06em;
       color: var(--white);
       margin-bottom: 36px;
       line-height: 1.4;
+      word-break: break-word;
     }
 
     /* ─── ABOUT ───────────────────────────── */
@@ -468,6 +489,8 @@
     .stat-card {
       background: var(--bg);
       padding: 26px 22px;
+      overflow: hidden;
+      word-break: break-word;
     }
 
     .stat-key {
@@ -589,9 +612,11 @@
       background: transparent;
       border: none;
       outline: none;
+      min-height: 44px;
       padding: 13px 16px;
       font-family: var(--font);
-      font-size: 0.82rem;
+      /* 16px min prevents iOS Safari auto-zoom on focus */
+      font-size: 16px;
       color: var(--white);
       min-width: 0;
     }
@@ -602,6 +627,7 @@
       background: var(--green);
       color: var(--bg);
       border: none;
+      min-height: 44px;
       padding: 13px 22px;
       font-family: var(--font);
       font-size: 0.75rem;
@@ -659,9 +685,12 @@
     }
 
     .add-bot-btn {
-      display: inline-block;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       border: 1px solid var(--border-2);
-      padding: 11px 28px;
+      min-height: 44px;
+      padding: 12px 28px;
       font-family: var(--font);
       font-size: 0.75rem;
       letter-spacing: 0.15em;
@@ -771,7 +800,6 @@
 
     @media (max-width: 768px) {
       nav { padding: 16px 20px; }
-      nav .nav-link { display: none; }
 
       .hero {
         grid-template-columns: 1fr;
@@ -795,6 +823,54 @@
       .chain-item { min-width: 140px; }
 
       footer { padding: 20px; flex-direction: column; text-align: center; }
+    }
+
+    /* ─── PHONE (≤ 640px) ─── */
+    @media (max-width: 640px) {
+      /* Collapse nav: keep logo + status pill only */
+      nav .nav-link { display: none; }
+
+      /* Single-column hero */
+      .hero {
+        grid-template-columns: 1fr;
+        gap: 32px;
+        padding: 96px 20px 56px;
+      }
+      .terminal { justify-self: stretch; max-width: 100%; }
+
+      /* 4-step grid → 2x2 */
+      .steps { grid-template-columns: 1fr 1fr; gap: 24px; }
+
+      /* Chains stack vertically — no horizontal overflow */
+      .chain-list { flex-direction: column; }
+      .chain-item {
+        flex: 1 1 auto;
+        min-width: 0;
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+      .chain-item:last-child { border-bottom: none; }
+
+      /* Contact CTA full-width with generous padding */
+      .invite-box { width: 100%; }
+      .add-bot-btn {
+        display: flex;
+        width: 100%;
+        padding: 16px 24px;
+      }
+    }
+
+    /* ─── SMALL PHONE (< 480px) ─── */
+    @media (max-width: 479px) {
+      /* Terminal eats too much vertical space; copy matters more */
+      .terminal { display: none; }
+    }
+
+    /* ─── TINY PHONE (≤ 380px) ─── */
+    @media (max-width: 380px) {
+      /* 4-step grid → single column */
+      .steps { grid-template-columns: 1fr; }
     }
   </style>
 </head>
