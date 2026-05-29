@@ -1,4 +1,5 @@
 import { HeroGeometric } from "@/components/ui/shape-landing-hero";
+import { GlowCard } from "@/components/ui/spotlight-card";
 import { motion } from "framer-motion";
 
 const fadeUp = {
@@ -122,13 +123,16 @@ export default function App() {
               <motion.div
                 key={i} custom={i * 0.1}
                 variants={fadeUp} initial="hidden" whileInView="visible" viewport={{ once: true }}
-                className="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-7 hover:border-white/[0.15] hover:-translate-y-1 transition-all"
               >
-                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#4b5694]/30 to-[#7288ae]/20 flex items-center justify-center text-xl mb-5">
-                  {f.icon}
-                </div>
-                <div className="font-bold text-[#eae0cf] mb-2">{f.title}</div>
-                <div className="text-[#eae0cf]/50 text-sm leading-relaxed">{f.desc}</div>
+                <GlowCard customSize glowColor="indigo" className="w-full h-full min-h-[180px] !aspect-auto">
+                  <div>
+                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#4b5694]/30 to-[#7288ae]/20 flex items-center justify-center text-xl mb-5">
+                      {f.icon}
+                    </div>
+                    <div className="font-bold text-[#eae0cf] mb-2">{f.title}</div>
+                    <div className="text-[#eae0cf]/50 text-sm leading-relaxed">{f.desc}</div>
+                  </div>
+                </GlowCard>
               </motion.div>
             ))}
           </div>
