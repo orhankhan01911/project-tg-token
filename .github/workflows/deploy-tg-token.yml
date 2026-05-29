@@ -76,14 +76,15 @@ jobs:
           echo "==> starting compose stack"
           $SSH "cd /root/tg-token/infra && docker compose -f docker-compose.prod.yml up -d --remove-orphans"
 
-          # ── 5. Deploy landing page ────────────────────────────────────────────
+          # ── 5. Deploy landing page + Caddy site block ─────────────────────────
           echo "==> deploying landing page to /srv/gatekept-landing"
-          $SSH "mkdir -p /srv/gatekept-landing"
+          $SSH "mkdir -p /srv/gatekept-landing /etc/caddy/sites"
           $SSH "cp /root/tg-token/landing/index.html /srv/gatekept-landing/index.html"
+          $SSH "cp /root/tg-token/infra/Caddyfile.gatekept /etc/caddy/sites/gatekept.conf"
 
-          # Reload Caddy so the gatekept.net block picks up the files
-          $SSH "caddy reload --config /root/project-btcV2/infra/Caddyfile 2>/dev/null || systemctl reload caddy 2>/dev/null || true"
-          echo "==> landing deployed"
+          # Reload Caddy — tg-token owns its own site block, independent of btcV2
+          $SSH "caddy reload --config /etc/caddy/Caddyfile 2>/dev/null || systemctl reload caddy 2>/dev/null || true"
+          echo "==> landing deployed and Caddy reloaded"
 
           # ── 6. Verify bot alive ───────────────────────────────────────────────
           echo "==> polling for telegram_connected (up to 60s)"
