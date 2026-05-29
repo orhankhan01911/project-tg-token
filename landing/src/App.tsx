@@ -1,6 +1,7 @@
 import { HeroGeometric } from "@/components/ui/shape-landing-hero";
 import { GlowCard } from "@/components/ui/spotlight-card";
 import { motion } from "framer-motion";
+import { Lock, DollarSign, Shield, UserCheck, Trash2, Link2 } from "lucide-react";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -11,12 +12,12 @@ const fadeUp = {
 };
 
 const FEATURES = [
-  { icon: "🔐", title: "Token-Based Access", desc: "Gate on any ERC-20, SPL, or Jetton. Members must hold the minimum to enter and stay." },
-  { icon: "💰", title: "USD-Denominated Gates", desc: "Set thresholds in USD. The bot prices tokens live via DexScreener — gate on $50 of value, not raw amounts." },
-  { icon: "🛡️", title: "Secure Wallet Verification", desc: "Ownership proven by a tiny self-transfer. No seed phrases, no extensions, no custody of funds." },
-  { icon: "👤", title: "Admin Whitelisting", desc: "Permanent access for admins and trusted users without token verification." },
-  { icon: "🧹", title: "Automatic Purging", desc: "Monthly sweeps remove users who no longer meet requirements. Fully automatic, no loopholes." },
-  { icon: "⛓️", title: "Multichain Support", desc: "ETH, Base, Solana, TON — one bot, all chains. Bridged tokens treated as a single gate." },
+  { icon: Lock, title: "Token-Based Access", desc: "Gate on any ERC-20, SPL, or Jetton. Members must hold the minimum to enter and stay." },
+  { icon: DollarSign, title: "USD-Denominated Gates", desc: "Set thresholds in USD. The bot prices tokens live via DexScreener — gate on $50 of value, not raw amounts." },
+  { icon: Shield, title: "Secure Wallet Verification", desc: "Ownership proven by a tiny self-transfer. No seed phrases, no extensions, no custody of funds." },
+  { icon: UserCheck, title: "Admin Whitelisting", desc: "Permanent access for admins and trusted users without token verification." },
+  { icon: Trash2, title: "Automatic Purging", desc: "Monthly sweeps remove users who no longer meet requirements. Fully automatic, no loopholes." },
+  { icon: Link2, title: "Multichain Support", desc: "ETH, Base, Solana, TON — one bot, all chains. Bridged tokens treated as a single gate." },
 ];
 
 const STEPS = [
@@ -27,10 +28,10 @@ const STEPS = [
 ];
 
 const CHAINS = [
-  { icon: "Ξ", name: "Ethereum", sub: "ERC-20", color: "#627eea" },
-  { icon: "🔵", name: "Base", sub: "ERC-20", color: "#5b8fff" },
-  { icon: "◎", name: "Solana", sub: "SPL", color: "#9945ff" },
-  { icon: "💎", name: "TON", sub: "Jetton", color: "#0098ea" },
+  { img: "https://assets.coingecko.com/coins/images/279/small/ethereum.png", name: "Ethereum", sub: "ERC-20" },
+  { img: "https://assets.coingecko.com/asset_platforms/images/131/small/base.jpeg", name: "Base", sub: "ERC-20" },
+  { img: "https://assets.coingecko.com/coins/images/4128/small/solana.png", name: "Solana", sub: "SPL" },
+  { img: "https://assets.coingecko.com/coins/images/17980/small/ton_symbol.png", name: "TON", sub: "Jetton" },
 ];
 
 const AUDIENCE = [
@@ -102,7 +103,7 @@ export default function App() {
           </div>
           <a
             href="https://web.telegram.org/k/#@derivativesmonkey"
-            className="inline-flex items-center gap-2 bg-gradient-to-r from-[#4b5694] to-[#7288ae] text-[#eae0cf] text-sm font-semibold px-4 py-2 rounded-lg hover:opacity-90 transition-all no-underline min-h-[36px]"
+            className="inline-flex items-center gap-2 bg-gradient-to-r from-[#5568b0] to-[#8099c8] text-[#eae0cf] text-sm font-semibold px-4 py-2 rounded-lg hover:opacity-90 transition-all no-underline min-h-[36px] shadow-[0_4px_24px_rgba(85,104,176,0.5)] hover:shadow-[0_8px_32px_rgba(85,104,176,0.7)]"
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
               <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.248l-2.04 9.61c-.148.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.903.611z"/>
@@ -120,12 +121,12 @@ export default function App() {
       />
 
       {/* FEATURES */}
-      <section id="features" className="py-24 px-6 relative z-10">
+      <section id="features" className="py-20 px-6 relative z-10">
         <div className="max-w-6xl mx-auto">
           <motion.div className="text-center mb-14" initial="hidden" whileInView="visible" viewport={{ once: true }}>
             <SectionBadge>Key Features</SectionBadge>
             <SectionTitle>Powerful <Hl>Token Gates</Hl></SectionTitle>
-            <p className="text-[#eae0cf]/50 text-base max-w-lg mx-auto">
+            <p className="text-[#eae0cf]/65 text-base max-w-lg mx-auto">
               Everything you need to run an exclusive, always-enforced token community.
             </p>
           </motion.div>
@@ -137,11 +138,11 @@ export default function App() {
                 className="h-full"
               >
                 <GlowCard customSize glowColor="indigo" className="w-full !grid-rows-none !aspect-auto block p-7">
-                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#4b5694]/30 to-[#7288ae]/20 flex items-center justify-center text-xl mb-5">
-                    {f.icon}
+                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#4b5694]/30 to-[#7288ae]/20 flex items-center justify-center mb-5">
+                    <f.icon className="w-5 h-5 text-[#7288ae]" />
                   </div>
-                  <div className="font-bold text-white mb-2">{f.title}</div>
-                  <div className="text-white/70 text-sm leading-relaxed">{f.desc}</div>
+                  <div className="font-bold text-[#eae0cf] mb-2">{f.title}</div>
+                  <div className="text-[#eae0cf]/80 text-sm leading-relaxed">{f.desc}</div>
                 </GlowCard>
               </motion.div>
             ))}
@@ -150,12 +151,12 @@ export default function App() {
       </section>
 
       {/* HOW IT WORKS */}
-      <section id="how-it-works" className="py-24 px-6 border-t border-white/[0.05] relative z-10">
+      <section id="how-it-works" className="py-16 px-6 border-t border-white/[0.05] relative z-10">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-14">
             <SectionBadge>Simple Process</SectionBadge>
             <SectionTitle>How It <Hl>Works</Hl></SectionTitle>
-            <p className="text-[#eae0cf]/50 text-base max-w-md mx-auto">
+            <p className="text-[#eae0cf]/65 text-base max-w-md mx-auto">
               4-step process to secure your Telegram community with blockchain-powered access control.
             </p>
           </div>
@@ -215,11 +216,11 @@ export default function App() {
       </section>
 
       {/* CHAINS */}
-      <section id="chains" className="py-24 px-6 border-t border-white/[0.05] relative z-10">
+      <section id="chains" className="py-16 px-6 border-t border-white/[0.05] relative z-10">
         <div className="max-w-6xl mx-auto text-center">
           <SectionBadge>Multi-Chain Support</SectionBadge>
           <SectionTitle>Supported <Hl>Blockchains</Hl></SectionTitle>
-          <p className="text-[#eae0cf]/50 text-base max-w-sm mx-auto mb-12">
+          <p className="text-[#eae0cf]/65 text-base max-w-sm mx-auto mb-12">
             Multi-chain support for flexible token gating across different networks.
           </p>
           <div className="flex gap-5 justify-center flex-wrap">
@@ -229,7 +230,7 @@ export default function App() {
                 variants={fadeUp} initial="hidden" whileInView="visible" viewport={{ once: true }}
                 className="bg-white/[0.03] border border-white/[0.07] rounded-2xl px-8 py-6 text-center min-w-[130px] hover:border-white/[0.15] hover:-translate-y-1 transition-all"
               >
-                <div className="text-3xl mb-3">{c.icon}</div>
+                <img src={c.img} alt={c.name} className="w-10 h-10 rounded-full object-contain mb-3 mx-auto" />
                 <div className="font-bold text-[#eae0cf] text-sm">{c.name}</div>
                 <div className="font-mono text-[10px] text-[#eae0cf]/30 mt-1 tracking-wider">{c.sub}</div>
               </motion.div>
@@ -239,12 +240,12 @@ export default function App() {
       </section>
 
       {/* AUDIENCE */}
-      <section className="py-24 px-6 border-t border-white/[0.05] relative z-10">
+      <section className="py-16 px-6 border-t border-white/[0.05] relative z-10">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-14">
             <SectionBadge>Target Audience</SectionBadge>
             <SectionTitle>Who's It <Hl>For?</Hl></SectionTitle>
-            <p className="text-[#eae0cf]/50 text-base max-w-md mx-auto">
+            <p className="text-[#eae0cf]/65 text-base max-w-md mx-auto">
               Perfect for creators, communities, and projects looking to gate access.
             </p>
           </div>
@@ -272,7 +273,7 @@ export default function App() {
       </section>
 
       {/* CTA */}
-      <section id="contact" className="py-24 px-6 border-t border-white/[0.05] relative z-10">
+      <section id="contact" className="py-16 px-6 border-t border-white/[0.05] relative z-10">
         <div className="max-w-6xl mx-auto">
           <div className="relative bg-white/[0.03] border border-white/[0.08] rounded-3xl p-16 text-center overflow-hidden">
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-40 bg-gradient-to-b from-[#4b5694]/20 to-transparent blur-2xl pointer-events-none" />
@@ -281,12 +282,12 @@ export default function App() {
               <h2 className="text-3xl sm:text-4xl font-bold text-[#eae0cf] mb-4 tracking-tight" style={{ letterSpacing: "-0.02em" }}>
                 Start Building Your <Hl>Gate</Hl>
               </h2>
-              <p className="text-[#eae0cf]/50 text-base mb-8 max-w-sm mx-auto">
+              <p className="text-[#eae0cf]/65 text-base mb-8 max-w-sm mx-auto">
                 We'll configure your token gate in under 2 minutes. Contact us on Telegram.
               </p>
               <a
                 href="https://web.telegram.org/k/#@derivativesmonkey"
-                className="inline-flex items-center gap-2.5 bg-gradient-to-r from-[#4b5694] to-[#7288ae] text-[#eae0cf] font-semibold text-base px-8 py-4 rounded-xl hover:opacity-90 hover:-translate-y-0.5 transition-all shadow-xl shadow-[#4b5694]/25 no-underline min-h-[44px]"
+                className="inline-flex items-center gap-2.5 bg-gradient-to-r from-[#5568b0] to-[#8099c8] text-[#eae0cf] font-semibold text-base px-8 py-4 rounded-xl hover:opacity-90 hover:-translate-y-0.5 transition-all shadow-[0_4px_24px_rgba(85,104,176,0.5)] hover:shadow-[0_8px_32px_rgba(85,104,176,0.7)] no-underline min-h-[44px]"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.248l-2.04 9.61c-.148.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.903.611z"/>

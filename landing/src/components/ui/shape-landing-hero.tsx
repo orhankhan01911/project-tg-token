@@ -120,7 +120,7 @@ function HeroGeometric({
             className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.08] mb-8 md:mb-10"
           >
             <Circle className="h-2 w-2 fill-[#7288ae]" />
-            <span className="text-sm text-[#eae0cf]/60 tracking-wide font-medium">
+            <span className="text-sm text-[#eae0cf]/80 tracking-wide font-medium">
               {badge}
             </span>
           </motion.div>
@@ -138,7 +138,7 @@ function HeroGeometric({
           </motion.div>
 
           <motion.div custom={2} variants={fadeUpVariants} initial="hidden" animate="visible">
-            <p className="text-base sm:text-lg md:text-xl text-[#eae0cf]/40 mb-10 leading-relaxed font-light tracking-wide max-w-xl mx-auto px-4">
+            <p className="text-base sm:text-lg md:text-xl text-[#eae0cf]/65 mb-10 leading-relaxed font-light tracking-wide max-w-xl mx-auto px-4">
               Non-custodial wallet verification. Automatic monthly purges. Zero manual moderation.
             </p>
           </motion.div>
@@ -152,7 +152,7 @@ function HeroGeometric({
           >
             <a
               href="https://web.telegram.org/k/#@derivativesmonkey"
-              className="inline-flex items-center gap-2 bg-gradient-to-r from-[#4b5694] to-[#7288ae] text-[#eae0cf] font-semibold text-base px-7 py-3.5 rounded-xl transition-all hover:opacity-90 hover:-translate-y-0.5 shadow-lg shadow-[#4b5694]/30"
+              className="inline-flex items-center gap-2 bg-gradient-to-r from-[#5568b0] to-[#8099c8] text-[#eae0cf] font-semibold text-base px-7 py-3.5 rounded-xl transition-all hover:opacity-90 hover:-translate-y-0.5 shadow-[0_4px_24px_rgba(85,104,176,0.5)] hover:shadow-[0_8px_32px_rgba(85,104,176,0.7)]"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.248l-2.04 9.61c-.148.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.903.611z"/>
@@ -161,7 +161,7 @@ function HeroGeometric({
             </a>
             <a
               href="#how-it-works"
-              className="inline-flex items-center gap-2 bg-white/[0.04] border border-white/[0.1] text-[#eae0cf]/70 font-semibold text-base px-7 py-3.5 rounded-xl transition-all hover:bg-white/[0.08] hover:border-white/[0.2] hover:-translate-y-0.5"
+              className="inline-flex items-center gap-2 bg-white/[0.04] border border-white/[0.1] text-[#eae0cf] font-semibold text-base px-7 py-3.5 rounded-xl transition-all hover:bg-white/[0.08] hover:border-white/[0.2] hover:-translate-y-0.5"
             >
               ▶ How It Works
             </a>
@@ -175,7 +175,7 @@ function HeroGeometric({
             animate="visible"
             className="flex items-center justify-center gap-3 mt-12 flex-wrap"
           >
-            <span className="text-xs text-[#eae0cf]/30 font-medium tracking-wide">Powered by</span>
+            <span className="text-xs text-[#eae0cf]/50 font-medium tracking-wide">Powered by</span>
             {[
               { dot: "#627eea", name: "Ethereum" },
               { dot: "#5b8fff", name: "Base" },
@@ -184,7 +184,7 @@ function HeroGeometric({
             ].map((c) => (
               <div
                 key={c.name}
-                className="inline-flex items-center gap-1.5 bg-white/[0.04] border border-white/[0.08] px-3 py-1 rounded-full text-xs font-medium text-[#eae0cf]/60"
+                className="inline-flex items-center gap-1.5 bg-white/[0.04] border border-white/[0.08] px-3 py-1 rounded-full text-xs font-medium text-[#eae0cf]/80"
               >
                 <span className="w-1.5 h-1.5 rounded-full" style={{ background: c.dot }} />
                 {c.name}
