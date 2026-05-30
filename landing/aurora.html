@@ -458,8 +458,10 @@
     width: 56px; height: 56px; border-radius: 50%;
     margin: 0 auto 18px;
     display: flex; align-items: center; justify-content: center;
-    font-weight: 800; font-size: 1.3rem;
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    overflow: hidden;
+  }
+  .chain-card .orb img {
+    width: 100%; height: 100%; object-fit: cover; border-radius: 50%;
   }
   .chain-card h3 { font-size: 1.2rem; margin-bottom: 4px; }
   .chain-card p { color: var(--muted); font-size: 0.85rem; }
@@ -564,10 +566,10 @@
     </div>
 
     <div class="chain-float">
-      <span class="chain-pill"><span class="ico" style="background:linear-gradient(135deg,#627eea,#8aa3ff)"></span>Ethereum</span>
-      <span class="chain-pill"><span class="ico" style="background:linear-gradient(135deg,#0052ff,#4d8bff)"></span>Base</span>
-      <span class="chain-pill"><span class="ico" style="background:linear-gradient(135deg,#14f195,#9945ff)"></span>Solana</span>
-      <span class="chain-pill"><span class="ico" style="background:linear-gradient(135deg,#0098ea,#33c2ff)"></span>TON</span>
+      <span class="chain-pill"><img class="ico" src="https://assets.coingecko.com/coins/images/279/small/ethereum.png" alt="ETH">Ethereum</span>
+      <span class="chain-pill"><img class="ico" src="https://assets.coingecko.com/asset_platforms/images/131/small/base.jpeg" alt="Base">Base</span>
+      <span class="chain-pill"><img class="ico" src="https://assets.coingecko.com/coins/images/4128/small/solana.png" alt="SOL">Solana</span>
+      <span class="chain-pill"><img class="ico" src="https://assets.coingecko.com/coins/images/17980/small/ton_symbol.png" alt="TON">TON</span>
     </div>
   </div>
 
@@ -692,22 +694,22 @@
 
     <div class="chain-track">
       <div class="chain-card reveal">
-        <div class="orb" style="background:linear-gradient(135deg,#627eea,#8aa3ff)">Ξ</div>
+        <div class="orb"><img src="https://assets.coingecko.com/coins/images/279/small/ethereum.png" alt="Ethereum"></div>
         <h3>Ethereum</h3>
         <p>ERC-20 & ERC-721 gating</p>
       </div>
       <div class="chain-card reveal">
-        <div class="orb" style="background:linear-gradient(135deg,#0052ff,#4d8bff)">B</div>
+        <div class="orb"><img src="https://assets.coingecko.com/asset_platforms/images/131/small/base.jpeg" alt="Base"></div>
         <h3>Base</h3>
         <p>Low-fee L2 verification</p>
       </div>
       <div class="chain-card reveal">
-        <div class="orb" style="background:linear-gradient(135deg,#14f195,#9945ff)">◎</div>
+        <div class="orb"><img src="https://assets.coingecko.com/coins/images/4128/small/solana.png" alt="Solana"></div>
         <h3>Solana</h3>
         <p>SPL token gating</p>
       </div>
       <div class="chain-card reveal">
-        <div class="orb" style="background:linear-gradient(135deg,#0098ea,#33c2ff)">💎</div>
+        <div class="orb"><img src="https://assets.coingecko.com/coins/images/17980/small/ton_symbol.png" alt="TON"></div>
         <h3>TON</h3>
         <p>Jetton-based access</p>
       </div>
